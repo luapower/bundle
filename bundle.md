@@ -3,6 +3,8 @@ project: bundle
 tagline: LuaJIT single-executable deployment
 ---
 
+## WORK IN PROGRESS
+
 ## Features
 
   * can embed:
