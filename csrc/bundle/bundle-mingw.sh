@@ -45,7 +45,7 @@ gcc -c bundle_main.c
 # add C static libs
 ALIBS=""
 for f in $C_LIBS; do
-	ALIBS="$ALIBS static/$f.a"
+	ALIBS="$ALIBS $f.a"
 done
 
 # add external, dynamic dependencies

@@ -23,7 +23,7 @@ done
 # add C static libs
 ALIBS=""
 for f in $C_LIBS; do
-	ALIBS="$ALIBS static/lib$f.a"
+	ALIBS="$ALIBS lib$f.a"
 done
 
 # add external, dynamic dependencies

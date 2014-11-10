@@ -97,7 +97,7 @@ static void **ll_register(lua_State *L, const char *name)
 }
 
 static const char *mksymname(lua_State *L, const char *modname,
-														 const char *prefix)
+	const char *prefix)
 {
 	const char *funcname;
 	const char *mark = strchr(modname, *LUA_IGMARK);
@@ -155,15 +155,15 @@ extern int bundle_loader_lua(lua_State *L)
 /* add our two bundle loaders at the end of package.loaders */
 extern void bundle_add_loaders(lua_State* L)
 {
-  /* push package.loaders table into the stack */
-  lua_getglobal(L, LUA_LOADLIBNAME);       /* get _G.package */
-  lua_getfield(L, -1, "loaders");          /* get _G.package.loaders */
+	/* push package.loaders table into the stack */
+	lua_getglobal(L, LUA_LOADLIBNAME);       /* get _G.package */
+	lua_getfield(L, -1, "loaders");          /* get _G.package.loaders */
 
-  lj_lib_pushcf(L, bundle_loader_lua, 1);  /* push as lua_CFunction */
-  lua_rawseti(L, -2, lua_objlen(L, -2)+1); /* append to loaders table */
+	lj_lib_pushcf(L, bundle_loader_lua, 1);  /* push as lua_CFunction */
+	lua_rawseti(L, -2, lua_objlen(L, -2)+1); /* append to loaders table */
 
-  lj_lib_pushcf(L, bundle_loader_c, 1);    /* push as lua_CFunction */
-  lua_rawseti(L, -2, lua_objlen(L, -2)+1); /* append to loaders table */
+	lj_lib_pushcf(L, bundle_loader_c, 1);    /* push as lua_CFunction */
+	lua_rawseti(L, -2, lua_objlen(L, -2)+1); /* append to loaders table */
 
-  lua_pop(L, 2); /* remove loaders and package tables */
+	lua_pop(L, 2); /* remove loaders and package tables */
 }
