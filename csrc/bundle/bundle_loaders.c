@@ -17,7 +17,6 @@
 #include "luajit.h"
 #include "lj_def.h"
 #include "lj_arch.h"
-#include "lj_lib.h"
 
 /* ------------------------------------------------------------------------ */
 
@@ -159,11 +158,11 @@ extern void bundle_add_loaders(lua_State* L)
 	lua_getglobal(L, LUA_LOADLIBNAME);       /* get _G.package */
 	lua_getfield(L, -1, "loaders");          /* get _G.package.loaders */
 
-	lj_lib_pushcf(L, bundle_loader_lua, 1);  /* push as lua_CFunction */
-	lua_rawseti(L, -2, lua_objlen(L, -2)+1); /* append to loaders table */
+	lua_pushcclosure(L, bundle_loader_lua, 0);  /* push as lua_CFunction */
+	lua_rawseti(L, -2, lua_objlen(L, -2)+1);    /* append to loaders table */
 
-	lj_lib_pushcf(L, bundle_loader_c, 1);    /* push as lua_CFunction */
-	lua_rawseti(L, -2, lua_objlen(L, -2)+1); /* append to loaders table */
+	lua_pushcclosure(L, bundle_loader_c, 0);    /* push as lua_CFunction */
+	lua_rawseti(L, -2, lua_objlen(L, -2)+1);    /* append to loaders table */
 
 	lua_pop(L, 2); /* remove loaders and package tables */
 }
