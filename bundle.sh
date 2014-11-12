@@ -1,4 +1,4 @@
-# go@ sh bundle.sh -v --alibs "luajit socket_core clipper" --modules "glue socket"
+# go@ sh bundle.sh -v --alibs "socket_core clipper" --modules "glue socket"
 #!/bin/sh
 #
 #  Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,
@@ -18,7 +18,7 @@ EXE_osx=a.out
 
 # note: only the mingw linker is smart to ommit dlibs which no code uses.
 DLIBS_mingw="gdi32 msimg32 opengl32 winmm ws2_32"
-DLIBS_linux="dl pthread"
+DLIBS_linux=""
 DLIBS_osx=""
 FRAMEWORKS="ApplicationServices" # for OSX
 
@@ -105,7 +105,7 @@ compile_module() {
 	set_module_vars $1; shift
 	OFILES="$OFILES $o"
 	[ -f $o -a $o -nt $f ] && return # does it need (re)compiling?
-	echo "  $f"
+	say "  $f"
 	f=$f o=$o m=$m compile_${x}_module $CFLAGS "$@"
 }
 
@@ -185,8 +185,8 @@ link_linux() {
 		-Wl,-E \
 		-Lbin/$P \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
-		-Wl,--no-whole-archive `lopt "$DLIBS"` \
-	&&	chmod +x "$EXE"
+		-Wl,--no-whole-archive -ldl `lopt "$DLIBS"` \
+		&&	chmod +x "$EXE"
 }
 
 # usage: P=<platform> ALIBS=<lib1...> DLIBS=<lib1...> EXE=<exe_file>
@@ -215,11 +215,10 @@ compress_exe() {
 #         MAIN=<module> EXE=<exe_file> NOCONSOLE=1 ICON=<icon> COMPRESS_EXE=1 $0
 bundle() {
 	say "Bundle parameters:"
-	say "  Platform:       $OS ($P)"
-	say "  Modules:        "$MODULES
-	say "  Static libs:    "$ALIBS
-	say "  Dynamic libs:   "$DLIBS
-	say
+	say "  Platform:      " "$OS ($P)"
+	say "  Modules:       " $MODULES
+	say "  Static libs:   " $ALIBS
+	say "  Dynamic libs:  " $DLIBS
 	compile_all
 	link_all
 	compress_exe
@@ -234,8 +233,8 @@ usage() {
 	echo "  -o  --output <file>             Output executable [$EXE]"
 	echo
 	echo "  -m  --modules \"file1 ...\"|--all Lua (or C) modules to bundle"
-	echo "  -a  --alibs \"lib1 ...\"|--all    Static libs to bundle ["$ALIBS"]"
-	echo "  -d  --dlibs \"lib1 ...\"          Dynamic libs to link against [*]"
+	echo "  -a  --alibs \"lib1 ...\"|--all    Static libs to bundle [1]"
+	echo "  -d  --dlibs \"lib1 ...\"          Dynamic libs to link against [2]"
 	echo
 	echo "  -M  --main <module>             Module to run on start-up"
 	#echo "  -pl --package.path <spec>       Set package.path"
@@ -249,7 +248,8 @@ usage() {
 	echo "  -i  --icon <file>               Set icon (for Windows and OSX)"
 	echo "  -w  --no-console                Do not show the terminal / console"
 	echo
-	echo "  [*] default dlibs: "$DLIBS
+	echo "  [1] default static libs:  "$ALIBS
+	echo "  [2] default dynamic libs: "$DLIBS
 	echo
 }
 
@@ -278,15 +278,19 @@ parse_cmdline() {
 			-o  | --output)
 				EXE="$1"; shift;;
 			-m  | --modules)
-				MODULES="$1"; shift
-				[ "$MODULES" = --all ] && MODULES="$(lua_modules)";;
+				MODULES="$MODULES $1"
+				[ "$1" = --all ] && MODULES="$(lua_modules)"
+				shift
+				;;
 			-M  | --main)
 				MAIN="$1"; shift;;
 			-a  | --alibs)
-				ALIBS="$1"; shift
-				[ "$ALIBS" = --all ] && ALIBS="$(alibs)";;
+				ALIBS="$ALIBS $1"
+				[ "$1" = --all ] && ALIBS="$(alibs)"
+				shift
+				;;
 			-d  | --dlibs)
-				DLIBS="$1"; shift;;
+				DLIBS="$DLIBS $1"; shift;;
 			-ll | --list-lua-modules)
 				lua_modules; exit;;
 			-la | --list-alibs)
