@@ -1,3 +1,4 @@
+//go@ sh run.sh
 /*
 ** LuaJIT frontend. Runs commands, scripts, read-eval-print (REPL) etc.
 ** Copyright (C) 2005-2014 Mike Pall. See Copyright Notice in luajit.h
@@ -5,7 +6,7 @@
 ** Major portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
 **
-** Changed by Cosmin Apreutesei to add bundle_loaders (no (c) claimed).
+** Modified by Cosmin Apreutesei for luapower.com/bundle project.
 */
 
 #include <stdio.h>
@@ -21,7 +22,7 @@
 
 #include "lj_arch.h"
 
-#include "bundle_loaders.h"
+#include "bundle.h"
 
 #if LJ_TARGET_POSIX
 #include <unistd.h>
@@ -65,8 +66,9 @@ static void laction(int i)
 
 static void print_usage(void)
 {
-  fprintf(stderr,
-  "usage: %s [options]... [script [args]...].\n"
+  fputs("usage: ", stderr);
+  fputs(progname, stderr);
+  fputs(" [options]... [script [args]...].\n"
   "Available options are:\n"
   "  -e chunk  Execute string " LUA_QL("chunk") ".\n"
   "  -l name   Require library " LUA_QL("name") ".\n"
@@ -77,16 +79,14 @@ static void print_usage(void)
   "  -v        Show version information.\n"
   "  -E        Ignore environment variables.\n"
   "  --        Stop handling options.\n"
-  "  -         Execute stdin and stop handling options.\n"
-  ,
-  progname);
+  "  -         Execute stdin and stop handling options.\n", stderr);
   fflush(stderr);
 }
 
 static void l_message(const char *pname, const char *msg)
 {
-  if (pname) fprintf(stderr, "%s: ", pname);
-  fprintf(stderr, "%s\n", msg);
+  if (pname) { fputs(pname, stderr); fputc(':', stderr); fputc(' ', stderr); }
+  fputs(msg, stderr); fputc('\n', stderr);
   fflush(stderr);
 }
 
@@ -518,6 +518,16 @@ static int pmain(lua_State *L)
   globalL = L;
   if (argv[0] && argv[0][0]) progname = argv[0];
   LUAJIT_VERSION_SYM();  /* linker-enforced version check */
+  /* load libs early to make require() available */
+  lua_gc(L, LUA_GCSTOP, 0);  /* stop collector during initialization */
+  luaL_openlibs(L);  /* open libraries */
+  lua_gc(L, LUA_GCRESTART, -1);
+  /* load bundle loaders */
+  bundle_add_loaders(L);
+  /* load bundle main routine */
+  if (!bundle_main(L, s->argc, argv))
+    return 0;
+  /* end of bundle extensions */
   script = collectargs(argv, &flags);
   if (script < 0) {  /* invalid args? */
     print_usage();
@@ -528,10 +538,6 @@ static int pmain(lua_State *L)
     lua_pushboolean(L, 1);
     lua_setfield(L, LUA_REGISTRYINDEX, "LUA_NOENV");
   }
-  lua_gc(L, LUA_GCSTOP, 0);  /* stop collector during initialization */
-  luaL_openlibs(L);  /* open libraries */
-  lua_gc(L, LUA_GCRESTART, -1);
-  bundle_add_loaders(L);
   if (!(flags & FLAGS_NOENV)) {
     s->status = handle_luainit(L);
     if (s->status != 0) return 0;
@@ -574,17 +580,3 @@ int main(int argc, char **argv)
   return (status || smain.status) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
-/*
-// main() wrapper that inserts "-lbundle_init" in argv[1]
-int main(int argc, char **argv)
-{
-	char** argv_ = malloc((argc + 1) * sizeof(char*));
-	if (!argv)
-	    return EXIT_FAILURE;
-	argv_[0] = argv[0];
-	argv_[1] = "-lbundle_init";
-	memcpy(argv_ + 2, argv + 1, (argc - 1) * sizeof(char*));
-
-	return _main(argc + 1, argv_);
-}
-*/
