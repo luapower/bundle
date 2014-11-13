@@ -1,6 +1,5 @@
-//go@ sh run.sh
 /*
-** Package loaders for bundled Lua and Lua/C modules.
+** Module loaders for bundled Lua and Lua/C modules.
 ** By Cosmin Apreutesei, no (c) claimed.
 **
 ** Major portions taken verbatim or adapted from LuaJIT's lib_package.c.
@@ -18,6 +17,8 @@
 #include "luajit.h"
 #include "lj_def.h"
 #include "lj_arch.h"
+
+#include "bundle.h"
 
 /* ------------------------------------------------------------------------ */
 

@@ -1,4 +1,3 @@
-//go@ sh run.sh
 /*
 ** LuaJIT frontend. Runs commands, scripts, read-eval-print (REPL) etc.
 ** Copyright (C) 2005-2014 Mike Pall. See Copyright Notice in luajit.h
