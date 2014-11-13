@@ -119,7 +119,7 @@ static void loaderror(lua_State *L)
 
 /* load a C module bundled in the running executable */
 /* C modules are bundled as lua_CFunction as `luaopen_<name>` globals */
-extern int bundle_loader_c(lua_State *L)
+static int bundle_loader_c(lua_State *L)
 {
 	const char *name = luaL_checkstring(L, 1);
 	void **reg = ll_register(L, name);
@@ -137,7 +137,7 @@ extern int bundle_loader_c(lua_State *L)
 
 /* load a Lua module bundled in the running executable */
 /* Lua modules are bundled as bytecode as `luajit_BCF_<name>` globals */
-extern int bundle_loader_lua(lua_State *L)
+static int bundle_loader_lua(lua_State *L)
 {
 	const char *name = luaL_checkstring(L, 1);
 	const char *bcname = mksymname(L, name, SYMPREFIX_BC);
@@ -148,7 +148,7 @@ extern int bundle_loader_lua(lua_State *L)
 		return 1;
 	}
 	lua_pop(L, 1); /* remove bcname */
-	if (luaL_loadbuffer(L, bcdata+4, *((int32_t*)bcdata), name) != 0) {
+	if (luaL_loadbuffer(L, bcdata+4, *((uint32_t*)bcdata), name) != 0) {
 		lua_pushfstring(L, "error loading chunk");
 		loaderror(L);
 	}

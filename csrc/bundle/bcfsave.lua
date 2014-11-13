@@ -1,29 +1,44 @@
 
--- part of bcsave.lua from luajit that outputs a module's bytecode as
--- C code to stdout, with two modifications:
--- 1) the symbol prefix is luaJIT_BCF_ instead of luaJIT_BC_, and
--- 2) the first 4 bytes represent the bytecode size encoded as a int32_t.
+-- byte code saver, taken from bcsave.lua from luajit.
+-- outputs Lua bytecode or other binary data as C code to stdout.
+-- differences from luajit's bcsave:
+-- * the symbol prefix is luaJIT_BCF_ instead of luaJIT_BC_.
+-- * the first 4 bytes represent the bytecode size encoded as a uint32_t.
 
 local ffi = require'ffi'
+
+local function readfile(file)
+	if file == '-' then --stdin
+		return io.stdin:read'*a'
+	else
+		local f = assert(io.open(file, 'r'))
+		local s = f:read'*'
+		f:close()
+		return s
+	end
+end
+
+local function readfile(file)
+	if file == '-' then --stdin
+		return io.stdin:read'*a'
+	else
+		local f = assert(io.open(file, 'r'))
+		local s = f:read'*a'
+		f:close()
+		return s
+	end
+end
+
+local function symname(s)
+	if s=='-' then s = os.getenv'm' end
+	return s:gsub('%.lua$', ''):gsub('%.dasl$', ''):gsub('[\\%-/%.]', '_')
+end
 
 local function out(...)
 	io.stdout:write(...)
 end
 
-local function symname(s)
-	if s=='-' then s = os.getenv'm' end
-	return s:gsub('[\\%-/%.]', '_'):gsub('%.lua$', '')
-end
-
-local function bcout(file)
-	local code
-	if file == '-' then --stdin
-		code = loadstring(io.stdin:read'*a')
-	else
-		code = loadfile(file)
-	end
-	local s = string.dump(code)
-
+local function bout(name, s)
 	out(string.format([[
 #ifdef _cplusplus
 extern "C"
@@ -32,9 +47,9 @@ extern "C"
 __declspec(dllexport)
 #endif
 const char luaJIT_BCF_%s[] = {
-]], symname(file)))
+]], name))
 
-	local sz = ffi.new('int32_t[1]', #s)
+	local sz = ffi.new('uint32_t[1]', #s)
 	local psz = ffi.cast('uint8_t*', sz)
 	for i=3,0,-1 do
 		s = string.char(psz[i])..s
@@ -55,6 +70,32 @@ const char luaJIT_BCF_%s[] = {
 	out(table.concat(t, ",", 1, n).."\n};\n")
 end
 
+local function out(...)
+	io.stdout:write(...)
+end
+
+local function bcout(file)
+	local code = readfile(file)
+	local chunk= loadstring(code)
+	local name = symname(file)
+	local data = string.dump(chunk)
+	bout(name, data)
+end
+
+local function bfout(file)
+	local name = symname(file)
+	local data = readfile(file)
+	bout(name, data)
+end
+
+local use = bcout
 for i=1,select('#', ...) do
-	bcout(select(i, ...))
+	local arg = select(i, ...)
+	if arg == '-b' then
+		use = bfout
+	elseif arg == '-l' then
+		use = bcout
+	else
+		use(arg)
+	end
 end

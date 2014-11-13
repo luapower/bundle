@@ -1,4 +1,5 @@
-# go@ sh bundle.sh -v -o c:/1/a.exe -a --all
+# go@ sh bundle.sh -h
+# go@ sh bundle.sh -v -o c:/1/a.exe -a --all -m 'glue media/bmp/bg.bmp'
 #!/bin/sh
 #
 #  Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,
@@ -12,6 +13,8 @@ say() { [ "$VERBOSE" ] && echo "$@"; }
 verbose() { say "$@"; "$@"; }
 
 # defaults -------------------------------------------------------------------
+
+BLOB_PREFIX=Blob_
 
 EXE_mingw=a.exe
 EXE_linux=a.out
@@ -30,6 +33,11 @@ APREFIX_osx=lib
 ALIBS="luajit"
 MODULES="bundle_loader"
 ICON=csrc/bundle/luajit2.ico
+
+IGNORE_ODIR=
+COMPRESS_EXE=
+NOCONSOLE=
+VERBOSE=
 
 # list modules and libs ------------------------------------------------------
 
@@ -88,14 +96,30 @@ compile_dasl_module() {
 	./luajit dynasm.lua $f | m=$f f=- compile_lua_module "$@"
 }
 
+# usage: f=file.* o=file.o $0 CFLAGS... -> file.o
+compile_bin_module()
+{
+	local m=`echo $f | tr '[/\.\-\\\\]' _`
+	echo "\
+	.global $BLOB_PREFIX$m
+	.section .rodata
+$BLOB_PREFIX$m:
+	.int data2 - data1
+data1:
+	.incbin \"$f\"
+data2:
+	" | gcc -c -xassembler - -o $o $CFLAGS "$@"
+}
+
 # usage: osuffix=suffix $0 file[.lua]|.c|.dasl CFLAGS... -> file.o
 compile_module() {
 	local f=$1; shift
 	local x=${f##*.}                       # a.lua -> lua
 	[ "$x" = $f ] && { x=lua; f=$f.lua; }
+	[ $x != lua -a $x != dasl -a $x != c ] && x=bin
 	local o=$ODIR/$f$osuffix.o             # a -> $ODIR/a.o
 	OFILES="$OFILES $o"
-	[ -f $o -a $o -nt $f ] && return       # does it need (re)compiling?
+	[ -z "$IGNORE_ODIR" -a -f $o -a $o -nt $f ] && return # use cache
 	mkdir -p `dirname $o`
 	f=$f o=$o compile_${x}_module "$@"
 	say "  $f"
@@ -138,7 +162,7 @@ compile_all() {
 	ODIR=_o/$P
 	OFILES=""
 	mkdir -p $ODIR || { echo "Cannot mkdir $ODIR"; exit 1; }
-	compile_icon # the icon has to be first, believe it!
+	compile_icon # the icon has to be linked first, believe it!
 	compile_manifest
 	for m in $MODULES; do
 		compile_module $m
@@ -234,34 +258,43 @@ bundle() {
 # cmdline --------------------------------------------------------------------
 
 usage() {
-	echo "Usage: $0 [-m32] [other-options...]"
+	echo "Usage: $0 [options...]"
 	echo
-	echo "  -o  --output <file>             Output executable [$EXE]"
+	echo "  -o  --output <file>                Output executable [$EXE]"
 	echo
-	echo "  -m  --modules \"file1 ...\"|--all Lua (or C) modules to bundle"
-	echo "  -a  --alibs \"lib1 ...\"|--all    Static libs to bundle        [1]"
-	echo "  -d  --dlibs \"lib1 ...\"          Dynamic libs to link against [2]"
+	echo "  -m  --modules \"file1 ...\"|--all|-- Lua (or other) modules to bundle [1]"
+	echo "  -a  --alibs \"lib1 ...\"|--all|--    Static libs to bundle            [2]"
+	echo "  -d  --dlibs \"lib1 ...\"|--          Dynamic libs to link against     [3]"
 	[ $OS = osx ] && \
-	echo "  -f  --frameworks \"frm1 ...\"     Frameworks to link against   [3]"
+	echo "  -f  --frameworks \"frm1 ...\"        Frameworks to link against       [4]"
 	echo
-	echo "  -M  --main <module>             Module to run on start-up"
-	#echo "  -pl --package.path <spec>       Set package.path"
-	#echo "  -pc --package.cpath <spec>      Set package.cpath"
+	echo "  -M  --main <module>                Module to run on start-up"
 	echo
-	echo "  -ll --list-lua-modules          List Lua modules"
-	echo "  -la --list-alibs                List static libs (.a files)"
-	echo
-	echo "  -m32                            Force 32bit platform"
-	echo "  -z  --compress                  Compress the executable"
-	[ $OS = mingw ] && \
-	echo "  -i  --icon <file>               Set icon"
-	[ $OS = mingw ] && \
-	echo "  -w  --no-console                Hide the terminal / console"
-	echo
-	echo "  [1] implicit static libs:       "$ALIBS
-	echo "  [2] implicit dynamic libs:      "$DLIBS
 	[ $OS = osx ] && \
-	echo "  [3] implicit frameworks:        "$FRAMEWORKS
+	echo "  -m32                               Force 32bit platform"
+	echo "  -z  --compress                     Compress the executable"
+	[ $OS = mingw ] && \
+	echo "  -i  --icon <file>                  Set icon"
+	[ $OS = mingw ] && \
+	echo "  -w  --no-console                   Hide the terminal / console"
+	echo
+	echo "  -ll --list-lua-modules             List Lua modules"
+	echo "  -la --list-alibs                   List static libs (.a files)"
+	echo
+	echo "  -C  --clean                        Ignore the object cache"
+	echo
+	echo "  -v  --verbose                      Be verbose"
+	echo "  -h  --help                         Show this screen"
+	echo
+   echo " Passing -- clears the list of args for that option, including implicit args."
+	echo
+	echo " [1] .c and .dasl files will be compiled, other files will be added as blobs."
+	echo
+	echo " [2] implicit static libs:            "$ALIBS
+	echo " [3] implicit dynamic libs:           "$DLIBS
+	[ $OS = osx ] && \
+	echo " [4] implicit frameworks:             "$FRAMEWORKS
+	echo
 	echo
 }
 
@@ -275,40 +308,49 @@ set_platform() {
 		[ "$1" -o "$(uname -m)" != x86_64 ] && a=32 || a=64
 		[ "${OSTYPE#darwin}" != "$OSTYPE" ] && P=osx$a || P=linux$a
 	fi
-	OS=${P%[0-9][0-9]}
-	eval EXE=\$EXE_$OS
-	eval DLIBS=\$DLIBS_$OS
-	eval APREFIX=\$APREFIX_$OS
 	[ $P = osx32 ] && CFLAGS="-arch i386"
 	[ $P = osx64 ] && CFLAGS="-arch x86_64"
 }
 
-parse_cmdline() {
+set_platform
+
+OS=${P%[0-9][0-9]}
+eval EXE=\$EXE_$OS
+eval DLIBS=\$DLIBS_$OS
+eval APREFIX=\$APREFIX_$OS
+
+parse_opts() {
 	while [ "$1" ]; do
 		local opt="$1"; shift
 		case "$opt" in
 			-o  | --output)
 				EXE="$1"; shift;;
 			-m  | --modules)
-				MODULES="$MODULES $1"
+				[ "$1" = -- ] && MODULES="" || MODULES="$MODULES $1"
 				[ "$1" = --all ] && MODULES="$(lua_modules)"
 				shift
 				;;
 			-M  | --main)
 				MAIN="$1"; shift;;
 			-a  | --alibs)
-				ALIBS="$ALIBS $1"
+				[ "$1" = -- ] && ALIBS="" || ALIBS="$ALIBS $1"
 				[ "$1" = --all ] && ALIBS="$(alibs)"
 				shift
 				;;
 			-d  | --dlibs)
-				DLIBS="$DLIBS $1"; shift;;
+				[ "$1" = -- ] && DLIBS="" || DLIBS="$DLIBS $1"
+				shift
+				;;
 			-f  | --frameworks)
-				FRAMEWORKS="$FRAMEWORKS $1"; shift;;
+				[ "$1" = -- ] && FRAMEWORKS="" || FRAMEWORKS="$FRAMEWORKS $1"
+				shift
+				;;
 			-ll | --list-lua-modules)
 				lua_modules; exit;;
 			-la | --list-alibs)
 				alibs; exit;;
+			-C  | --clean)
+				IGNORE_ODIR=1;;
 			-m32)
 				set_platform m32;;
 			-z  | --compress)
@@ -330,6 +372,5 @@ parse_cmdline() {
 	done
 }
 
-set_platform
-parse_cmdline "$@"
+parse_opts "$@"
 bundle
