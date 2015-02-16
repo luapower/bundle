@@ -3,13 +3,14 @@ project: bundle
 tagline: LuaJIT single-executable app deployment
 ---
 
-## WORK IN PROGRESS
+<warn>WORK IN PROGRESS</warn>
 
-## What Is
+## What is
 
 Bundle is a small framework for bundling together LuaJIT, Lua modules,
 Lua/C modules, Dynasm/Lua modules, C libraries, and other static assets
-into a single fat executable. In its default configuration, it assumes luapower's [toolchain] and [directory layout] and it works on Windows,
+into a single fat executable. In its default configuration, it assumes
+luapower's [toolchain] and [directory layout] and it works on Windows,
 Linux and OSX, x86 and x64.
 
 ## How it works
