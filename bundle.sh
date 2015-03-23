@@ -236,7 +236,8 @@ link_all() {
 compress_exe() {
 	[ "$COMPRESS_EXE" ] || return
 	say "Compressing $EXE..."
-	which upx >/dev/null && upx -qqq "$EXE"
+	which upx >/dev/null || { say "UPX not found."; return; }
+	upx -qqq "$EXE"
 }
 
 # usage: P=platform MODULES='mod1 ...' ALIBS='lib1 ...' DLIBS='lib1 ...'
@@ -272,7 +273,7 @@ usage() {
 	echo
 	[ $OS = osx ] && \
 	echo "  -m32                               Force 32bit platform"
-	echo "  -z  --compress                     Compress the executable"
+	echo "  -z  --compress                     Compress the executable (needs UPX)"
 	[ $OS = mingw ] && \
 	echo "  -i  --icon <file>                  Set icon"
 	[ $OS = mingw ] && \
