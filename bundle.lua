@@ -18,24 +18,16 @@ local function symname(file)
 end
 
 local function getsym(sym)
-	ffi.cdef('const char* '..sym)
-	return ffi.C[sym]
+	ffi.cdef('void '..sym..'()')
+	return ffi.cast('const void*', ffi.C[sym])
 end
 
 local function getblob(file)
 	local sym = symname(file)
 	local ok, p = pcall(getsym, sym)
-	print(sym, ok, p)
-	local ok, p2 = pcall(getsym, 'luaJIT_BCF_bundle')
-	print('luaJIT_BCF_bundle', ok, p2)
-	local ok, p3 = pcall(getsym, 'xluaJIT_BCF_bundle')
-	print('xluaJIT_BCF_bundle', ok, p3)
-	print(p2[0])
-
-	--if not ok then return end
-	--local sz = ffi.cast('const uint32_t*', p)[0]
-	--print(p, sz)
-	--return ffi.string(p+4, sz)
+	if not ok then return end
+	p = ffi.cast('const uint32_t*', p)
+	return ffi.string(p+1, p[0])
 end
 
 local function load(file)

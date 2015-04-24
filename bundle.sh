@@ -67,7 +67,7 @@ alibs() {
 
 # compiling ------------------------------------------------------------------
 
-# usage: f=file.c o=file.o $0 CFLAGS... -> file.o
+# usage: CFLAGS=... f=file.c o=file.o $0 CFLAGS... -> file.o
 compile_c_module() {
 	gcc -c -xc $f -o $o $CFLAGS "$@"
 }
@@ -83,18 +83,34 @@ compile_dasl_module() {
 }
 
 # usage: f=file.* o=file.o $0 CFLAGS... -> file.o
-compile_bin_module()
-{
-	local m=`echo $f | tr '[/\.\-\\\\]' _`
+compile_bin_module_mingw() {
+	# TODO...
+	echo
+}
+
+# usage: f=file.* o=file.o $0 CFLAGS... -> file.o
+compile_bin_module_linux() {
+	ld -r -b binary -o $o $CFLAGS $f "$@"
+}
+
+# usage: f=file.* o=file.o m=module $0 CFLAGS... -> file.o
+compile_bin_module_osx() {
 	echo "\
-	.global $BLOB_PREFIX$m
-	.section .rodata
-$BLOB_PREFIX$m:
-	.int data2 - data1
-data1:
-	.incbin \"$f\"
-data2:
+	.section __TEXT,__const
+	.global _$BLOB_PREFIX$m
+		_$BLOB_PREFIX$m:
+			.int data2 - data1
+		data1:
+			.incbin \"$f\"
+		data2:
+			.byte 0   // avoid 'address not in any section file' error in i386
 	" | gcc -c -xassembler - -o $o $CFLAGS "$@"
+}
+
+# usage: f=file.* o=file.o $0 CFLAGS... -> file.o
+compile_bin_module() {
+	local m=${f//[\-\.\/\\]/_}  # foo/bar-baz.ext -> foo_bar_baz_ext
+	m=$m compile_bin_module_$OS "$@"
 }
 
 # usage: osuffix=suffix $0 file[.lua]|.c|.dasl CFLAGS... -> file.o
