@@ -32,7 +32,7 @@ return function(...)
 	--but unlike the '!' symbol in package paths, it's portable.
 	local dir = arg[0]:gsub('[/\\]?[^/\\]+$', '') --arg[0] is the exe path
 	local slash = package.config:sub(1,1)
-	package.path = string.format('%s/?.lua;%s/?/init.lua', dir, dir):gsub('/', slash)
+	package.path = string.format('lua/%s/?.lua;lua/%s/?/init.lua', dir, dir):gsub('/', slash)
 	package.cpath = string.format('%s/clib/?.dll', dir):gsub('/', slash)
 
 	--find and run the main module, its name given in arg[-1].

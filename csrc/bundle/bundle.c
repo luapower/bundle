@@ -118,7 +118,7 @@ static void loaderror(lua_State *L)
 }
 
 /* load a C module bundled in the running executable */
-/* C modules are bundled as lua_CFunction as `luaopen_<name>` globals */
+/* C modules are bundled as lua_CFunction in `luaopen_<name>` globals */
 static int bundle_loader_c(lua_State *L)
 {
 	const char *name = luaL_checkstring(L, 1);
@@ -136,7 +136,7 @@ static int bundle_loader_c(lua_State *L)
 }
 
 /* load a Lua module bundled in the running executable */
-/* Lua modules are bundled as bytecode as `luajit_BCF_<name>` globals */
+/* Lua modules are bundled as bytecode in `luajit_BCF_<name>` globals */
 static int bundle_loader_lua(lua_State *L)
 {
 	const char *name = luaL_checkstring(L, 1);

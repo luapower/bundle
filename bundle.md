@@ -33,48 +33,53 @@ single-executable app deployment for pure Lua apps with no glue C code needed.
 
 ## Usage
 
+	sh bundle.sh options...
 
-	sh bundle.sh [options...]
+	  -o  --output FILE                  Output executable (required)
 
-	-o  --output <file>                 Output executable [a.exe]
+	  -m  --modules "FILE1 ..."|--all|-- Lua (or other) modules to bundle [1]
+	  -a  --alibs "LIB1 ..."|--all|--    Static libs to bundle            [2]
+	  -d  --dlibs "LIB1 ..."|--          Dynamic libs to link against     [3]
+	  -f  --frameworks "FRM1 ..."        Frameworks to link against       [4]
 
-	-m  --modules "file1 ..."|--all     Modules to bundle
-	-a  --alibs "lib1 ..."|--all        Static libs to bundle
-	-d  --dlibs "lib1 ..."              Dynamic libs to link against
-	-f  --frameworks "frm1 ..."         Frameworks to link against (OSX)
+	  -M  --main MODULE                  Module to run on start-up
 
-	-M  --main <module>                 Module to run on start-up
+	  -m32                               Force 32bit platform
+	  -z  --compress                     Compress the executable (needs UPX)
 
-	-m32                                Force 32bit platform (OSX)
-	-z  --compress                      Compress the executable
-	-i  --icon <file>                   Set icon (Windows)
-	-w  --no-console                    Hide the terminal / console (Windows)
+	  -ll --list-lua-modules             List Lua modules
+	  -la --list-alibs                   List static libs (.a files)
 
-	-ll --list-lua-modules              List Lua modules
-	-la --list-alibs                    List static libs (.a files)
+	  -C  --clean                        Ignore the object cache
 
-	-C  --clean                         Ignore the object cache
+	  -q  --quiet                        Be quiet
+	  -h  --help                         Show this screen
 
-	-v  --verbose                       Be verbose
-	-h  --help                          Show this screen
+	 Passing -- clears the list of args for that option, including implicit args.
+
+	 [1] .c and .dasl files will be compiled, other files will be added as blobs.
+
+	 [2] implicit static libs:           luajit
+	 [3] implicit dynamic libs:
+	 [4] implicit frameworks:            ApplicationServices
 
 
 ## Examples
 
 	# full bundle: all Lua, dasm and statically built C modules
-	sh bundle.sh -v -a --all -m --all -M main -o fat.exe
+	sh bundle.sh -a --all -m --all -M main -o fat.exe
 
 	# minimal bundle, two Lua modules, one C module, one blob
-	sh bundle.sh -v -a sha2 -m 'sha2 main media/bmp/bg.bmp' -M main -o lean.exe
+	sh bundle.sh -a sha2 -m 'sha2 main media/bmp/bg.bmp' -M main -o lean.exe
 
 	# luajit frontend with built-in luasocket support, no main module
-	sh bundle.sh -v -a 'socket_core mime_core' -m 'socket mime ltn12 socket/*.lua' -o luajit.exe
+	sh bundle.sh -a 'socket_core mime_core' -m 'socket mime ltn12 socket/*.lua' -o luajit.exe
 
-## About compression
+## A note on compression
 
 Compressed executables cannot be mmapped, so they have to stay in RAM
 fully and always. If the bundled assets are large and compressible,
-better results can be acheived by compressing them individually instead of
-compressing the entire exe.
-
+better results can be acheived by compressing them individually or not
+compressing them at all, instead of compressing the entire exe.
+Compression also adds up to the exe's loading time.
 

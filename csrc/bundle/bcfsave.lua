@@ -2,21 +2,13 @@
 -- byte code saver, taken from bcsave.lua from luajit.
 -- outputs Lua bytecode or other binary data as C code to stdout.
 -- differences from luajit's bcsave:
+-- * only outputs C code (other output formats were stripped).
 -- * the symbol prefix is luaJIT_BCF_ instead of luaJIT_BC_.
--- * the first 4 bytes represent the bytecode size encoded as a uint32_t.
+-- * the first 4 bytes contain the bytecode size encoded as a uint32.
+-- * module file name can be passed in env. var `m` when reading from stdin.
+-- * `bin/*/lua/` prefix in filename is stripped when converting to symbol name.
 
 local ffi = require'ffi'
-
-local function readfile(file)
-	if file == '-' then --stdin
-		return io.stdin:read'*a'
-	else
-		local f = assert(io.open(file, 'r'))
-		local s = f:read'*'
-		f:close()
-		return s
-	end
-end
 
 local function readfile(file)
 	if file == '-' then --stdin
@@ -31,6 +23,8 @@ end
 
 local function symname(s)
 	if s=='-' then s = os.getenv'm' end
+	local s1 = s:match'bin/[^/]+/lua/(.*)' --platform-specific Lua file
+	s = s1 or s
 	return s:gsub('%.lua$', ''):gsub('%.dasl$', ''):gsub('[\\%-/%.]', '_')
 end
 
@@ -76,9 +70,9 @@ end
 
 local function bcout(file)
 	local code = readfile(file)
-	local chunk= loadstring(code)
+	local chunk= assert(loadstring(code))
 	local name = symname(file)
-	local data = string.dump(chunk)
+	local data = string.dump(chunk, file)
 	bout(name, data)
 end
 

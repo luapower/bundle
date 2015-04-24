@@ -1,14 +1,5 @@
-# go@ sh bundle.sh -h
-# go@ sh bundle.sh -v -o c:/1/a.exe -a --all -m 'glue media/bmp/bg.bmp'
-#!/bin/sh
-#
-#  Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,
-#  and other static assets into a single fat executable.
-#
-#  Tested with mingw, gcc and clang on Windows, Linux and OSX respectively.
-#  Written by Cosmin Apreutesei. Public Domain.
-#
-
+#!/bin/bash
+shopt -s nullglob
 say() { [ "$VERBOSE" ] && echo "$@"; }
 verbose() { say "$@"; "$@"; }
 
@@ -16,14 +7,10 @@ verbose() { say "$@"; "$@"; }
 
 BLOB_PREFIX=Blob_
 
-EXE_mingw=a.exe
-EXE_linux=a.out
-EXE_osx=a.out
-
 # note: only the mingw linker is smart to ommit dlibs that are not used.
 DLIBS_mingw="gdi32 msimg32 opengl32 winmm ws2_32"
-DLIBS_linux=""
-DLIBS_osx=""
+DLIBS_linux=
+DLIBS_osx=
 FRAMEWORKS="ApplicationServices" # for OSX
 
 APREFIX_mingw=
@@ -41,7 +28,7 @@ VERBOSE=
 
 # list modules and libs ------------------------------------------------------
 
-# usage: $0 basedir/file.lua|.dasl -> file.lua|.dasl
+# usage: P=<platform> $0 basedir/file.lua|.dasl -> file.lua|.dasl
 # note: skips test and demo modules, and other platforms modules.
 lua_module() {
 	local f=$1
@@ -49,17 +36,16 @@ lua_module() {
 	[ "$ext" != lua -a "$ext" != dasl ] && return
 	[ "${f%_test.lua}" != $f ] && return
 	[ "${f%_demo.lua}" != $f ] && return
-	[ "${f#bin/}" != $f -a "${f#bin/$P/}" == $f ] && return
+	[ "${f#bin/}" != $f -a "${f#bin/$P/}" = $f ] && return
 	echo $f
 }
 
-# usage: $0 [dir] -> module1.lua|.dasl ...
+# usage: P=<platform> $0 [dir] -> module1.lua|.dasl ...
 # note: skips looking in special dirs.
 lua_modules() {
 	for f in $1*; do
 		if [ -d $f ]; then
-			[ "${f:0:1}" != "_" \
-				-a "${f:0:1}" != "." \
+			[ "${f:0:1}" != "." \
 				-a "${f:0:4}" != csrc \
 				-a "${f:0:5}" != media \
 			] && \
@@ -86,7 +72,7 @@ compile_c_module() {
 	gcc -c -xc $f -o $o $CFLAGS "$@"
 }
 
-# usage: f='file1.lua ...' o=file.o $0 CFLAGS... -> file.o
+# usage: f='file1.lua ...' o=file.o | f=- m=file.o $0 CFLAGS... -> file.o
 compile_lua_module() {
 	./luajit csrc/bundle/bcfsave.lua $f | f=- compile_c_module "$@"
 }
@@ -114,10 +100,10 @@ data2:
 # usage: osuffix=suffix $0 file[.lua]|.c|.dasl CFLAGS... -> file.o
 compile_module() {
 	local f=$1; shift
-	local x=${f##*.}                       # a.lua -> lua
-	[ "$x" = $f ] && { x=lua; f=$f.lua; }
+	local x=${f##*.}                         # a.lua -> lua
+	[ "$x" = $f ] && { x=lua; f=$f.lua; }    # a -> a.lua
 	[ $x != lua -a $x != dasl -a $x != c ] && x=bin
-	local o=$ODIR/$f$osuffix.o             # a -> $ODIR/a.o
+	local o=$ODIR/$f$osuffix.o               # a -> $ODIR/a.o
 	OFILES="$OFILES $o"
 	[ -z "$IGNORE_ODIR" -a -f $o -a $o -nt $f ] && return # use cache
 	mkdir -p `dirname $o`
@@ -125,10 +111,10 @@ compile_module() {
 	say "  $f"
 }
 
-# usage: $0 file.c
+# usage: $0 file.c CFLAGS... -> file.o
 compile_bundle_module() {
 	local f=$1; shift
-	compile_module csrc/bundle/$f -Icsrc/bundle -Icsrc/luajit/src/src
+	compile_module csrc/bundle/$f -Icsrc/bundle -Icsrc/luajit/src/src "$@"
 }
 
 # usage: o=file.o $0
@@ -159,8 +145,8 @@ compile_manifest() {
 # usage: MODULES='mod1 ...' $0 -> $ODIR/*.o
 compile_all() {
 	say "Compiling modules..."
-	ODIR=_o/$P
-	OFILES=""
+	ODIR=.bundle-tmp/$P
+	OFILES=
 	mkdir -p $ODIR || { echo "Cannot mkdir $ODIR"; exit 1; }
 	compile_icon # the icon has to be linked first, believe it!
 	compile_manifest
@@ -168,8 +154,11 @@ compile_all() {
 		compile_module $m
 	done
 	compile_bundle_module luajit.c
-	local osuffix; local copt
+	local osuffix
+	local copt
 	[ "$MAIN" ] && {
+		# bundle.c is a template: it compiles differently for each BUNDLE_MAIN,
+		# so we make a different .o file for each unique value of $MAIN.
 		osuffix=_$MAIN
 		copt=-DBUNDLE_MAIN=$MAIN
 	}
@@ -208,7 +197,7 @@ link_mingw() {
 
 # usage: P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
 link_linux() {
-	g++ $CFLAGS $OFILES -o "$EXE" \
+	verbose g++ $CFLAGS $OFILES -o "$EXE" \
 		-static-libgcc -static-libstdc++ \
 		-Wl,-E \
 		-Lbin/$P \
@@ -219,12 +208,17 @@ link_linux() {
 
 # usage: P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
 link_osx() {
-	gcc $CFLAGS $OFILES -o "$EXE" \
+	# note: luajit needs these flags for OSX/x64, see http://luajit.org/install.html#embed
+	local xopt
+	[ $P = osx64 ] && xopt="-pagezero_size 10000 -image_base 100000000"
+	# note: using -stdlib=libstdc++ because in 10.9+, libc++ is the default.
+	verbose g++ $CFLAGS $OFILES -o "$EXE" \
+		-mmacosx-version-min=10.6 \
 		-stdlib=libstdc++ \
 		-Lbin/$P \
 		`lopt "$DLIBS"` \
 		`fopt "$FRAMEWORKS"` \
-		-Wl,-all_load `aopt "$ALIBS"` \
+		-Wl,-all_load `aopt "$ALIBS"` $xopt \
 	&&	chmod +x "$EXE"
 }
 
@@ -259,23 +253,30 @@ bundle() {
 # cmdline --------------------------------------------------------------------
 
 usage() {
-	echo "Usage: $0 [options...]"
 	echo
-	echo "  -o  --output <file>                Output executable [$EXE]"
+	echo " Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,"
+	echo " and other static assets into a single fat executable."
 	echo
-	echo "  -m  --modules \"file1 ...\"|--all|-- Lua (or other) modules to bundle [1]"
-	echo "  -a  --alibs \"lib1 ...\"|--all|--    Static libs to bundle            [2]"
-	echo "  -d  --dlibs \"lib1 ...\"|--          Dynamic libs to link against     [3]"
+	echo " Tested with mingw, gcc and clang on Windows, Linux and OSX respectively."
+	echo " Written by Cosmin Apreutesei. Public Domain."
+	echo
+	echo " USAGE: $0 options..."
+	echo
+	echo "  -o  --output FILE                  Output executable (required)"
+	echo
+	echo "  -m  --modules \"FILE1 ...\"|--all|-- Lua (or other) modules to bundle [1]"
+	echo "  -a  --alibs \"LIB1 ...\"|--all|--    Static libs to bundle            [2]"
+	echo "  -d  --dlibs \"LIB1 ...\"|--          Dynamic libs to link against     [3]"
 	[ $OS = osx ] && \
-	echo "  -f  --frameworks \"frm1 ...\"        Frameworks to link against       [4]"
+	echo "  -f  --frameworks \"FRM1 ...\"        Frameworks to link against       [4]"
 	echo
-	echo "  -M  --main <module>                Module to run on start-up"
+	echo "  -M  --main MODULE                  Module to run on start-up"
 	echo
 	[ $OS = osx ] && \
 	echo "  -m32                               Force 32bit platform"
 	echo "  -z  --compress                     Compress the executable (needs UPX)"
 	[ $OS = mingw ] && \
-	echo "  -i  --icon <file>                  Set icon"
+	echo "  -i  --icon FILE                    Set icon"
 	[ $OS = mingw ] && \
 	echo "  -w  --no-console                   Hide the terminal / console"
 	echo
@@ -289,14 +290,14 @@ usage() {
 	echo
    echo " Passing -- clears the list of args for that option, including implicit args."
 	echo
-	echo " [1] .c and .dasl files will be compiled, other files will be added as blobs."
+	echo " [1] .lua, .c and .dasl are compiled, other files are added as blobs."
 	echo
-	echo " [2] implicit static libs:            "$ALIBS
-	echo " [3] implicit dynamic libs:           "$DLIBS
+	echo " [2] implicit static libs:           "$ALIBS
+	echo " [3] implicit dynamic libs:          "$DLIBS
 	[ $OS = osx ] && \
-	echo " [4] implicit frameworks:             "$FRAMEWORKS
+	echo " [4] implicit frameworks:            "$FRAMEWORKS
 	echo
-	echo
+	exit
 }
 
 # usage: $0 [force_32bit]
@@ -316,7 +317,6 @@ set_platform() {
 set_platform
 
 OS=${P%[0-9][0-9]}
-eval EXE=\$EXE_$OS
 eval DLIBS=\$DLIBS_$OS
 eval APREFIX=\$APREFIX_$OS
 
@@ -327,23 +327,23 @@ parse_opts() {
 			-o  | --output)
 				EXE="$1"; shift;;
 			-m  | --modules)
-				[ "$1" = -- ] && MODULES="" || MODULES="$MODULES $1"
+				[ "$1" = -- ] && MODULES= || MODULES="$MODULES $1"
 				[ "$1" = --all ] && MODULES="$(lua_modules)"
 				shift
 				;;
 			-M  | --main)
 				MAIN="$1"; shift;;
 			-a  | --alibs)
-				[ "$1" = -- ] && ALIBS="" || ALIBS="$ALIBS $1"
+				[ "$1" = -- ] && ALIBS= || ALIBS="$ALIBS $1"
 				[ "$1" = --all ] && ALIBS="$(alibs)"
 				shift
 				;;
 			-d  | --dlibs)
-				[ "$1" = -- ] && DLIBS="" || DLIBS="$DLIBS $1"
+				[ "$1" = -- ] && DLIBS= || DLIBS="$DLIBS $1"
 				shift
 				;;
 			-f  | --frameworks)
-				[ "$1" = -- ] && FRAMEWORKS="" || FRAMEWORKS="$FRAMEWORKS $1"
+				[ "$1" = -- ] && FRAMEWORKS= || FRAMEWORKS="$FRAMEWORKS $1"
 				shift
 				;;
 			-ll | --list-lua-modules)
@@ -361,16 +361,16 @@ parse_opts() {
 			-w  | --no-console)
 				NOCONSOLE=1;;
 			-h  | --help)
-				usage; exit;;
+				usage;;
 			-v | --verbose)
 				VERBOSE=1;;
 			*)
 				echo "Invalid option: $opt"
 				usage "$opt"
-				exit 1
 				;;
 		esac
 	done
+	[ "$EXE" ] || usage
 }
 
 parse_opts "$@"
