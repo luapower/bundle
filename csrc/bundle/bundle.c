@@ -14,10 +14,6 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
-#include "luajit.h"
-#include "lj_def.h"
-#include "lj_arch.h"
-
 #include "bundle.h"
 
 /* ------------------------------------------------------------------------ */
@@ -27,50 +23,27 @@
 /* we use a separate prefix for bundled modules */
 #define SYMPREFIX_BC		"Blua_%s"
 
-#if LJ_TARGET_DLOPEN
-
-	#include <dlfcn.h>
-
-	static void *ll_sym(const char *sym)
-	{
-		void *lib;
-		#if defined(RTLD_DEFAULT)
-			lib = RTLD_DEFAULT;
-		#elif LJ_TARGET_OSX || LJ_TARGET_BSD
-			lib = (void *)(intptr_t)-2;
-		#endif
-		return dlsym(lib, sym);
-	}
-
-#elif LJ_TARGET_WINDOWS
+#ifdef _WIN32
 
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
 
-	#ifndef GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-	#define GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS  4
-	#define GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT  2
-	BOOL WINAPI GetModuleHandleExA(DWORD, LPCSTR, HMODULE*);
-	#endif
-
 	static void *ll_sym(const char *sym)
 	{
 		HINSTANCE h = GetModuleHandleA(NULL);
-		void *p = GetProcAddress(h, sym);
-		if (p == NULL && GetModuleHandleExA(
-					GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-					GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-				(const char *)ll_sym, &h))
-			p = GetProcAddress(h, sym);
-		return p;
+		return GetProcAddress(h, sym);
 	}
 
 #else
 
+	#include <dlfcn.h>
 	static void *ll_sym(const char *sym)
 	{
-		UNUSED(sym);
-		return NULL;
+		void *lib = 0;
+		#ifdef __APPLE__
+			lib = RTLD_SELF;
+		#endif
+		return dlsym(lib, sym);
 	}
 
 #endif
@@ -148,7 +121,7 @@ static int bundle_loader_lua(lua_State *L)
 		return 1;
 	}
 	lua_pop(L, 1); /* remove bcname */
-	if (luaL_loadbuffer(L, bcdata+4, *((uint32_t*)bcdata), bcname) != 0) {
+	if (luaL_loadbuffer(L, bcdata+4, *((unsigned int*)bcdata), bcname) != 0) {
 		lua_pushfstring(L, "error loading chunk");
 		loaderror(L);
 	}

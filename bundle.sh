@@ -1,5 +1,14 @@
 #!/bin/bash
 shopt -s nullglob
+
+describe() {
+	echo " Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,"
+	echo " and other static assets into a single fat executable."
+	echo
+	echo " Tested with mingw, gcc and clang on Windows, Linux and OSX respectively."
+	echo " Written by Cosmin Apreutesei. Public Domain."
+}
+
 say() { [ "$VERBOSE" ] && echo "$@"; }
 verbose() { say "$@"; "$@"; }
 die() { echo "$@" >&2; exit 1; }
@@ -69,12 +78,12 @@ alibs() {
 
 # compiling ------------------------------------------------------------------
 
-# usage: f=file.* o=file.o sym=symbolname $0 CFLAGS... -> file.o
+# usage: CFLAGS=... f=file.* o=file.o sym=symbolname $0 CFLAGS... -> file.o
 compile_bin_file() {
 	local sec=.rodata
 	[ $OS = osx ] && sec="__TEXT,__const"
-	# symbols must be prefixed with an underscore, except in Windows
-	local sym=$sym; [ $OS = mingw ] || sym=_$sym
+	# symbols must be prefixed with an underscore on OSX
+	local sym=$sym; [ $OS = osx ] && sym=_$sym
 	# insert a shim to avoid 'address not in any section file' error in OSX/i386
 	local shim; [ $P = osx32 ] && shim=".byte 0"
 	echo "\
@@ -89,15 +98,9 @@ compile_bin_file() {
 	" | gcc -c -xassembler - -o $o $CFLAGS "$@"
 }
 
-# usage: f=file.c o=file.o $0 CFLAGS... -> file.o
+# usage: CFLAGS=... f=file.c o=file.o $0 CFLAGS... -> file.o
 compile_c_module() {
 	gcc -c -xc $f -o $o $CFLAGS "$@"
-}
-
-# usage: [ f='file1.lua ...' | f=- filename='file1.dasl ...' ] o=file.o $0 CFLAGS... -> file.o
-compile_lua_module_old() {
-	PREFIX=$BLUA_PREFIX FILENAME=$filename \
-		./luajit csrc/bundle/bcfsave.lua $f | f=- compile_c_module "$@"
 }
 
 # usage: [ filename=file.lua ] f=file.lua|- o=file.o $0 CFLAGS... -> file.o
@@ -233,8 +236,8 @@ aopt() { for f in $1; do echo "bin/$P/$APREFIX$f.a"; done; }
 lopt() { for f in $1; do echo "-l$f"; done; }
 fopt() { for f in $1; do echo "-framework $f"; done; }
 
-# usage: P=platform ALIBS='lib1 ...' DLIBS='lib1 ...'
-#        EXE=exe_file NOCONSOLE=1 $0
+# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' \
+#          EXE=exe_file NOCONSOLE=1 $0
 link_mingw() {
 
 	local mingw_lib_dir
@@ -245,43 +248,42 @@ link_mingw() {
 	fi
 
 	# make a windows app or a console app
-	local opt; [ "$NOCONSOLE" ] && opt=-mwindows
+	local xopt; [ "$NOCONSOLE" ] && xopt=-mwindows
 
-	verbose g++ $opt $CFLAGS $OFILES -o "$EXE" \
+	verbose g++ $LDFLAGS $OFILES -o "$EXE" \
 		-static -static-libgcc -static-libstdc++ \
 		-Wl,--export-all-symbols \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
 		-Wl,--no-whole-archive \
 		"$mingw_lib_dir"/libmingw32.a \
-		`lopt "$DLIBS"`
-
+		`lopt "$DLIBS"` $xopt
 }
 
-# usage: P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
+# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
 link_linux() {
-	verbose g++ $CFLAGS $OFILES -o "$EXE" \
+	verbose g++ $LDFLAGS $OFILES -o "$EXE" \
 		-static-libgcc -static-libstdc++ \
 		-Wl,-E \
 		-Lbin/$P \
+		-pthread \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
-		-Wl,--no-whole-archive -ldl `lopt "$DLIBS"` \
-		&&	chmod +x "$EXE"
+		-Wl,--no-whole-archive -lm -ldl `lopt "$DLIBS"`
+	chmod +x "$EXE"
 }
 
-# usage: P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
+# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
 link_osx() {
 	# note: luajit needs these flags for OSX/x64, see http://luajit.org/install.html#embed
-	local xopt
-	[ $P = osx64 ] && xopt="-pagezero_size 10000 -image_base 100000000"
+	local xopt; [ $P = osx64 ] && xopt="-pagezero_size 10000 -image_base 100000000"
 	# note: using -stdlib=libstdc++ because in 10.9+, libc++ is the default.
-	verbose g++ $CFLAGS $OFILES -o "$EXE" \
+	verbose g++ $LDFLAGS $OFILES -o "$EXE" \
 		-mmacosx-version-min=10.6 \
 		-stdlib=libstdc++ \
 		-Lbin/$P \
 		`lopt "$DLIBS"` \
 		`fopt "$FRAMEWORKS"` \
-		-Wl,-all_load `aopt "$ALIBS"` $xopt \
-	&&	chmod +x "$EXE"
+		-Wl,-all_load `aopt "$ALIBS"` $xopt
+	chmod +x "$EXE"
 	install_name_tool -add_rpath @loader_path/ "$EXE"
 }
 
@@ -317,11 +319,7 @@ bundle() {
 
 usage() {
 	echo
-	echo " Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,"
-	echo " and other static assets into a single fat executable."
-	echo
-	echo " Tested with mingw, gcc and clang on Windows, Linux and OSX respectively."
-	echo " Written by Cosmin Apreutesei. Public Domain."
+	describe
 	echo
 	echo " USAGE: $0 options..."
 	echo
@@ -365,6 +363,8 @@ usage() {
 
 # usage: $0 [force_32bit]
 set_platform() {
+
+	# detect platform
 	if [ "$OSTYPE" = msys ]; then
 		[ "$1" -o ! -f "$SYSTEMROOT\SysWOW64\kernel32.dll" ] && \
 			P=mingw32 || P=mingw64
@@ -373,8 +373,14 @@ set_platform() {
 		[ "$1" -o "$(uname -m)" != x86_64 ] && a=32 || a=64
 		[ "${OSTYPE#darwin}" != "$OSTYPE" ] && P=osx$a || P=linux$a
 	fi
-	[ $P = osx32 ] && CFLAGS="-arch i386"
-	[ $P = osx64 ] && CFLAGS="-arch x86_64"
+
+	# set platform-specific variables
+	OS=${P%[0-9][0-9]}
+	eval DLIBS=\$DLIBS_$OS
+	eval APREFIX=\$APREFIX_$OS
+
+	[ $P = osx32 ] && { CFLAGS="-arch i386";   LDFLAGS="-arch i386"; }
+	[ $P = osx64 ] && { CFLAGS="-arch x86_64"; LDFLAGS="-arch x86_64"; }
 }
 
 parse_opts() {
@@ -433,15 +439,9 @@ parse_opts() {
 }
 
 PWD0="$PWD"
-cd "$(dirname "$0")" || \
-	die "Could not cd to the script's directory."
-[ "$PWD" = "$PWD0" ] || \
-	die "Only run this script from it's directory."
+cd "$(dirname "$0")" || die "Could not cd to the script's directory."
+[ "$PWD" = "$PWD0" ] || die "Only run this script from it's directory."
 
 set_platform
-OS=${P%[0-9][0-9]}
-eval DLIBS=\$DLIBS_$OS
-eval APREFIX=\$APREFIX_$OS
-
 parse_opts "$@"
 bundle
