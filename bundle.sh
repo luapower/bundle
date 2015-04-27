@@ -2,10 +2,12 @@
 shopt -s nullglob
 say() { [ "$VERBOSE" ] && echo "$@"; }
 verbose() { say "$@"; "$@"; }
+die() { echo "$@" >&2; exit 1; }
 
 # defaults -------------------------------------------------------------------
 
-BLOB_PREFIX=Blob_
+BLUA_PREFIX=Blua_
+BBIN_PREFIX=Bbin_
 
 # note: only the mingw linker is smart to ommit dlibs that are not used.
 DLIBS_mingw="gdi32 msimg32 opengl32 winmm ws2_32"
@@ -67,64 +69,90 @@ alibs() {
 
 # compiling ------------------------------------------------------------------
 
-# usage: CFLAGS=... f=file.c o=file.o $0 CFLAGS... -> file.o
+# usage: f=file.* o=file.o sym=symbolname $0 CFLAGS... -> file.o
+compile_bin_file() {
+	local sec=.rodata
+	[ $OS = osx ] && sec="__TEXT,__const"
+	# symbols must be prefixed with an underscore, except in Windows
+	local sym=$sym; [ $OS = mingw ] || sym=_$sym
+	# insert a shim to avoid 'address not in any section file' error in OSX/i386
+	local shim; [ $P = osx32 ] && shim=".byte 0"
+	echo "\
+		.section $sec
+		.global $sym
+		$sym:
+			.int label_2 - label_1
+		label_1:
+			.incbin \"$f\"
+		label_2:
+			$shim
+	" | gcc -c -xassembler - -o $o $CFLAGS "$@"
+}
+
+# usage: f=file.c o=file.o $0 CFLAGS... -> file.o
 compile_c_module() {
 	gcc -c -xc $f -o $o $CFLAGS "$@"
 }
 
-# usage: f='file1.lua ...' o=file.o | f=- m=file.o $0 CFLAGS... -> file.o
+# usage: [ f='file1.lua ...' | f=- filename='file1.dasl ...' ] o=file.o $0 CFLAGS... -> file.o
+compile_lua_module_old() {
+	PREFIX=$BLUA_PREFIX FILENAME=$filename \
+		./luajit csrc/bundle/bcfsave.lua $f | f=- compile_c_module "$@"
+}
+
+# usage: [ filename=file.lua ] f=file.lua|- o=file.o $0 CFLAGS... -> file.o
 compile_lua_module() {
-	./luajit csrc/bundle/bcfsave.lua $f | f=- compile_c_module "$@"
+	./luajit -b -t raw -g $f $o.luac
+	local sym=$filename
+	[ "$sym" ] || sym=$f
+	sym=${sym#bin/$P/lua/}       # bin/<platform>/lua/a.lua -> a.lua
+	sym=${sym%.lua}              # a.lua -> a
+	sym=${sym%.dasl}             # a.dasl -> a
+	sym=${sym//[\-\.\/\\]/_}     # a-b.c/d -> a_b_c_d
+	sym=$BLUA_PREFIX$sym f=$o.luac compile_bin_file "$@"
 }
 
 # usage: f=file.dasl o=file.o $0 CFLAGS... -> file.o
 compile_dasl_module() {
-	./luajit dynasm.lua $f | m=$f f=- compile_lua_module "$@"
-}
-
-# usage: f=file.* o=file.o $0 CFLAGS... -> file.o
-compile_bin_module_mingw() {
-	# TODO...
-	echo
-}
-
-# usage: f=file.* o=file.o $0 CFLAGS... -> file.o
-compile_bin_module_linux() {
-	ld -r -b binary -o $o $CFLAGS $f "$@"
-}
-
-# usage: f=file.* o=file.o m=module $0 CFLAGS... -> file.o
-compile_bin_module_osx() {
-	echo "\
-	.section __TEXT,__const
-	.global _$BLOB_PREFIX$m
-		_$BLOB_PREFIX$m:
-			.int data2 - data1
-		data1:
-			.incbin \"$f\"
-		data2:
-			.byte 0   // avoid 'address not in any section file' error in i386
-	" | gcc -c -xassembler - -o $o $CFLAGS "$@"
+	./luajit dynasm.lua $f | filename=$f f=- compile_lua_module "$@"
 }
 
 # usage: f=file.* o=file.o $0 CFLAGS... -> file.o
 compile_bin_module() {
-	local m=${f//[\-\.\/\\]/_}  # foo/bar-baz.ext -> foo_bar_baz_ext
-	m=$m compile_bin_module_$OS "$@"
+	local sym=${f//[\-\.\/\\]/_}  # foo/bar-baz.ext -> foo_bar_baz_ext
+	sym=$BBIN_PREFIX$sym compile_bin_file "$@"
 }
 
-# usage: osuffix=suffix $0 file[.lua]|.c|.dasl CFLAGS... -> file.o
+sayt() { [ "$VERBOSE" ] && printf "  %-15s %s\n" "$1" "$2"; }
+
+# usage: osuffix=suffix $0 file[.lua]|.c|.dasl|.* CFLAGS... -> file.o
 compile_module() {
 	local f=$1; shift
-	local x=${f##*.}                         # a.lua -> lua
-	[ "$x" = $f ] && { x=lua; f=$f.lua; }    # a -> a.lua
-	[ $x != lua -a $x != dasl -a $x != c ] && x=bin
-	local o=$ODIR/$f$osuffix.o               # a -> $ODIR/a.o
+
+	# disambiguate between file `a.b` and Lua module `a.b`.
+	[ -f $f ] || {
+		local luaf=${f//\./\/}    # a.b -> a/b
+		luaf=$luaf.lua            # a/b -> a/b.lua
+		[ -f $luaf ] || die "File not found: $f (nor $luaf)"
+		f=$luaf
+	}
+
+	# infer file type from file extension
+	local x=${f##*.}             # a.ext -> ext
+	[ $x = c -o $x = lua -o $x = dasl ] || x=bin
+
+	local o=$ODIR/$f$osuffix.o   # a.ext -> $ODIR/a.ext.o
+
+	# add the .o file to the list of files to be linked
 	OFILES="$OFILES $o"
-	[ -z "$IGNORE_ODIR" -a -f $o -a $o -nt $f ] && return # use cache
+
+	# use the cached .o file if the source file hasn't changed, make-style.
+	[ -z "$IGNORE_ODIR" -a -f $o -a $o -nt $f ] && return
+
+	# or, compile the source file into the .o file
+	sayt $x $f
 	mkdir -p `dirname $o`
 	f=$f o=$o compile_${x}_module "$@"
-	say "  $f"
 }
 
 # usage: $0 file.c CFLAGS... -> file.o
@@ -133,52 +161,70 @@ compile_bundle_module() {
 	compile_module csrc/bundle/$f -Icsrc/bundle -Icsrc/luajit/src/src "$@"
 }
 
-# usage: o=file.o $0
+# usage: o=file.o s="res code..." $0
 compile_resource() {
 	OFILES="$OFILES $o"
-	say "  $o"
 	echo "$s" | windres -o $o
 }
 
 # add an icon file for the exe file and main window (Windows only)
-# usage: ICON=file $0 -> _icon.o
+# usage: $0 file.ico -> _icon.o
 compile_icon() {
-	[ "$OS" = mingw ] || return
-	[ "$ICON" ] || return
-	o=$ODIR/_icon.o s="0  ICON  \"$ICON\"" compile_resource
+	[ $OS = mingw ] || return
+	local f=$1; shift
+	[ "$f" ] || return
+	sayt icon $f
+	o=$ODIR/_icon.o s="0  ICON  \"$f\"" compile_resource
 }
 
 # add a manifest file to enable the exe to use comctl 6.0
-# usage: $0 -> _manifest.o
+# usage: $0 file.manifest -> _manifest.o
 compile_manifest() {
-	[ "$OS" = mingw ] || return
+	[ $OS = mingw ] || return
+	local f=$1; shift
+	[ "$f" ] || return
+	sayt manifest $f
 	s="\
 		#include \"winuser.h\"
-		1 RT_MANIFEST bin/mingw32/luajit.exe.manifest
+		1 RT_MANIFEST $f
 		" o=$ODIR/_manifest.o compile_resource
 }
 
 # usage: MODULES='mod1 ...' $0 -> $ODIR/*.o
 compile_all() {
 	say "Compiling modules..."
+
+	# the dir where .o files are generated
 	ODIR=.bundle-tmp/$P
-	OFILES=
 	mkdir -p $ODIR || { echo "Cannot mkdir $ODIR"; exit 1; }
-	compile_icon # the icon has to be linked first, believe it!
-	compile_manifest
+
+	# the compile_*() functions will add the names of all .o files to this var
+	OFILES=
+
+	# the icon has to be linked first, believe it!
+	# so we compile it first so that it's added to $OFILES first.
+	compile_icon "$ICON"
+	compile_manifest "bin/mingw32/luajit.exe.manifest"
+
+	# compile all the modules
 	for m in $MODULES; do
 		compile_module $m
 	done
-	compile_bundle_module luajit.c
+
+	# compile bundle.c which implements bundle_add_loaders() and bundle_main().
 	local osuffix
 	local copt
 	[ "$MAIN" ] && {
-		# bundle.c is a template: it compiles differently for each BUNDLE_MAIN,
+		# bundle.c is a template: it compiles differently for each $MAIN,
 		# so we make a different .o file for each unique value of $MAIN.
 		osuffix=_$MAIN
 		copt=-DBUNDLE_MAIN=$MAIN
 	}
 	osuffix=$osuffix compile_bundle_module bundle.c $copt
+
+	# compile our custom luajit frontend which calls bundle_add_loaders()
+	# and bundle_main() on startup.
+	compile_bundle_module luajit.c
 }
 
 # linking --------------------------------------------------------------------
@@ -236,6 +282,7 @@ link_osx() {
 		`fopt "$FRAMEWORKS"` \
 		-Wl,-all_load `aopt "$ALIBS"` $xopt \
 	&&	chmod +x "$EXE"
+	install_name_tool -add_rpath @loader_path/ "$EXE"
 }
 
 link_all() {
@@ -330,12 +377,6 @@ set_platform() {
 	[ $P = osx64 ] && CFLAGS="-arch x86_64"
 }
 
-set_platform
-
-OS=${P%[0-9][0-9]}
-eval DLIBS=\$DLIBS_$OS
-eval APREFIX=\$APREFIX_$OS
-
 parse_opts() {
 	while [ "$1" ]; do
 		local opt="$1"; shift
@@ -343,15 +384,17 @@ parse_opts() {
 			-o  | --output)
 				EXE="$1"; shift;;
 			-m  | --modules)
-				[ "$1" = -- ] && MODULES= || MODULES="$MODULES $1"
-				[ "$1" = --all ] && MODULES="$(lua_modules)"
+				[ "$1" = -- ] && MODULES= || \
+					[ "$1" = --all ] && MODULES="$(lua_modules)" || \
+					MODULES="$MODULES $1"
 				shift
 				;;
 			-M  | --main)
 				MAIN="$1"; shift;;
 			-a  | --alibs)
-				[ "$1" = -- ] && ALIBS= || ALIBS="$ALIBS $1"
-				[ "$1" = --all ] && ALIBS="$(alibs)"
+				[ "$1" = -- ] && ALIBS= || \
+					[ "$1" = --all ] && ALIBS="$(alibs)" || \
+						ALIBS="$ALIBS $1"
 				shift
 				;;
 			-d  | --dlibs)
@@ -388,6 +431,17 @@ parse_opts() {
 	done
 	[ "$EXE" ] || usage
 }
+
+PWD0="$PWD"
+cd "$(dirname "$0")" || \
+	die "Could not cd to the script's directory."
+[ "$PWD" = "$PWD0" ] || \
+	die "Only run this script from it's directory."
+
+set_platform
+OS=${P%[0-9][0-9]}
+eval DLIBS=\$DLIBS_$OS
+eval APREFIX=\$APREFIX_$OS
 
 parse_opts "$@"
 bundle

@@ -24,8 +24,8 @@
 
 /* Symbol name prefixes. */
 #define SYMPREFIX_CF		"luaopen_%s"
-/* we use a separate prefix for "fallback" embedded modules */
-#define SYMPREFIX_BC		"luaJIT_BCF_%s"
+/* we use a separate prefix for bundled modules */
+#define SYMPREFIX_BC		"Blua_%s"
 
 #if LJ_TARGET_DLOPEN
 
@@ -136,7 +136,7 @@ static int bundle_loader_c(lua_State *L)
 }
 
 /* load a Lua module bundled in the running executable */
-/* Lua modules are bundled as bytecode in `luajit_BCF_<name>` globals */
+/* Lua modules are bundled as bytecode in `<SYMPREFIX_BC><name>` globals */
 static int bundle_loader_lua(lua_State *L)
 {
 	const char *name = luaL_checkstring(L, 1);
@@ -148,7 +148,7 @@ static int bundle_loader_lua(lua_State *L)
 		return 1;
 	}
 	lua_pop(L, 1); /* remove bcname */
-	if (luaL_loadbuffer(L, bcdata+4, *((uint32_t*)bcdata), name) != 0) {
+	if (luaL_loadbuffer(L, bcdata+4, *((uint32_t*)bcdata), bcname) != 0) {
 		lua_pushfstring(L, "error loading chunk");
 		loaderror(L);
 	}

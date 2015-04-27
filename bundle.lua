@@ -1,11 +1,17 @@
 
--- Bundle Lua API, currently containing the blob loader.
+-- Bundle Lua API, currently containing only the blob loader.
 -- Written by Cosmin Apreutesei. Public Domain.
 
 local ffi = require'ffi'
-local BLOB_PREFIX = 'Blob_'
+local BBIN_PREFIX = 'Bbin_'
+
+--portable way to get exe's directory, based on arg[0].
+--the resulted directory is relative to the current directory.
+local dir = arg[0]:gsub('[/\\]?[^/\\]+$', '') or '' --remove file name
+dir = dir == '' and '.' or dir
 
 local function getfile(file)
+	file = dir..'/'..file
 	local f, err = io.open(file, 'rb')
 	if not f then return end
 	local s = f:read'*a'
@@ -13,20 +19,10 @@ local function getfile(file)
 	return s
 end
 
-local function symname(file)
-	return BLOB_PREFIX..file:gsub('[\\%-/%.]', '_')
-end
-
-local function getsym(sym)
-	ffi.cdef('void '..sym..'()')
-	return ffi.cast('const void*', ffi.C[sym])
-end
-
 local function getblob(file)
-	local sym = symname(file)
-	local ok, p = pcall(getsym, sym)
-	if not ok then return end
-	p = ffi.cast('const uint32_t*', p)
+	local sym = BBIN_PREFIX..file:gsub('[\\%-/%.]', '_')
+	pcall(ffi.cdef, 'void '..sym..'()')
+	local p = ffi.cast('const uint32_t*', ffi.C[sym])
 	return ffi.string(p+1, p[0])
 end
 
