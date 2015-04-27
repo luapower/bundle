@@ -113,6 +113,17 @@ The bundle loader (Lua part):
 Optional module for loading embedded binary files: contains the function
 `bundle.load(filename) -> string`.
 
+## Search paths
+
+External files are looked for relative to the executable directory,
+regardless of the current directory, as follows:
+
+  * shared library dependencies (either link-time or ffi.load-time) are
+  searched for in $exedir
+  * Lua modules are searched for in $exedir
+  * Lua/C modules are searched for in $exedir/clib
+  * static assets are searched for in $exedir
+
 
 ## A note on compression
 
