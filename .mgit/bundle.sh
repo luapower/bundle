@@ -247,15 +247,17 @@ link_mingw() {
 		mingw_lib_dir="$(dirname "$(which gcc)")/../x86_64-w64-mingw32/lib"
 	fi
 
+	local xopt
 	# make a windows app or a console app
-	local xopt; [ "$NOCONSOLE" ] && xopt=-mwindows
+	[ "$NOCONSOLE" ] && xopt="$xopt -mwindows"
+	# make a windows app or a console app
+	# [ $P = mingw32 ] && xopt="$xopt \"$mingw_lib_dir/libmingw32.a\""
 
 	verbose g++ $LDFLAGS $OFILES -o "$EXE" \
 		-static -static-libgcc -static-libstdc++ \
 		-Wl,--export-all-symbols \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
 		-Wl,--no-whole-archive \
-		"$mingw_lib_dir"/libmingw32.a \
 		`lopt "$DLIBS"` $xopt
 }
 
@@ -365,14 +367,9 @@ usage() {
 set_platform() {
 
 	# detect platform
-	if [ "$OSTYPE" = msys ]; then
-		[ "$1" -o ! -f "$SYSTEMROOT\SysWOW64\kernel32.dll" ] && \
-			P=mingw32 || P=mingw64
-	else
-		local a
-		[ "$1" -o "$(uname -m)" != x86_64 ] && a=32 || a=64
-		[ "${OSTYPE#darwin}" != "$OSTYPE" ] && P=osx$a || P=linux$a
-	fi
+	P=`.mgit/platform.sh`
+	[ "$P" ] || die "Unable to set platform."
+	[ "$1" ] && P=${P/64/32}
 
 	# set platform-specific variables
 	OS=${P%[0-9][0-9]}
@@ -437,10 +434,6 @@ parse_opts() {
 	done
 	[ "$EXE" ] || usage
 }
-
-PWD0="$PWD"
-cd "$(dirname "$0")" || die "Could not cd to the script's directory."
-[ "$PWD" = "$PWD0" ] || die "Only run this script from it's directory."
 
 set_platform
 parse_opts "$@"
