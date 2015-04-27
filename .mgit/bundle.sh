@@ -269,7 +269,8 @@ link_linux() {
 		-Lbin/$P \
 		-pthread \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
-		-Wl,--no-whole-archive -lm -ldl `lopt "$DLIBS"`
+		-Wl,--no-whole-archive -lm -ldl `lopt "$DLIBS"` \
+		-Wl,-rpath,'\$\$ORIGIN'
 	chmod +x "$EXE"
 }
 
