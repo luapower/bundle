@@ -1,6 +1,6 @@
 ---
 project: bundle
-tagline: LuaJIT single-executable app deployment
+tagline: single-executable app deployment
 ---
 
 ## What is
