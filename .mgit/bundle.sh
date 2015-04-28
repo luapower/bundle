@@ -324,7 +324,7 @@ usage() {
 	echo
 	describe
 	echo
-	echo " USAGE: $0 options..."
+	echo " USAGE: mgit bundle options..."
 	echo
 	echo "  -o  --output FILE                  Output executable (required)"
 	echo
