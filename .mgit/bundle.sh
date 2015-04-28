@@ -30,7 +30,7 @@ APREFIX_osx=lib
 
 ALIBS="luajit"
 MODULES="bundle_loader"
-ICON=csrc/bundle/luajit2.ico
+ICON=csrc/bundle/luapower.ico
 
 IGNORE_ODIR=
 COMPRESS_EXE=
