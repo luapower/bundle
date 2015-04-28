@@ -20,7 +20,7 @@ BBIN_PREFIX=Bbin_
 
 # note: only the mingw linker is smart to ommit dlibs that are not used.
 DLIBS_mingw="gdi32 msimg32 opengl32 winmm ws2_32"
-DLIBS_linux=
+DLIBS_linux="m dl"
 DLIBS_osx=
 FRAMEWORKS="ApplicationServices" # for OSX
 
@@ -82,8 +82,8 @@ alibs() {
 compile_bin_file() {
 	local sec=.rodata
 	[ $OS = osx ] && sec="__TEXT,__const"
-	# symbols must be prefixed with an underscore on OSX
-	local sym=$sym; [ $OS = osx ] && sym=_$sym
+	# symbols must be prefixed with an underscore on OSX and mingw-32bit
+	local sym=$sym; [ $OS = osx -o $P = mingw32 ] && sym=_$sym
 	# insert a shim to avoid 'address not in any section file' error in OSX/i386
 	local shim; [ $P = osx32 ] && shim=".byte 0"
 	echo "\
@@ -269,7 +269,7 @@ link_linux() {
 		-Lbin/$P \
 		-pthread \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
-		-Wl,--no-whole-archive -lm -ldl `lopt "$DLIBS"` \
+		-Wl,--no-whole-archive `lopt "$DLIBS"` \
 		-Wl,-rpath,'\$\$ORIGIN'
 	chmod +x "$EXE"
 }
