@@ -20,11 +20,16 @@ and it works on Windows, Linux and OSX, x86 and x64.
 	  -m  --modules "FILE1 ..."|--all|-- Lua (or other) modules to bundle [1]
 	  -a  --alibs "LIB1 ..."|--all|--    Static libs to bundle            [2]
 	  -d  --dlibs "LIB1 ..."|--          Dynamic libs to link against     [3]
+	  -f  --frameworks "FRM1 ..."        Frameworks to link against (OSX) [4]
 
 	  -M  --main MODULE                  Module to run on start-up
 
-	  -m32                               Force 32bit platform
+	  -m32                               Compile for 32bit (OSX)
 	  -z  --compress                     Compress the executable (needs UPX)
+	  -w  --no-console                   Hide console (Windows)
+	  -w  --no-console                   Make app bundle (OSX)
+	  -i  --icon FILE.ico                Set icon (Windows)
+	  -i  --icon FILE.png                Set icon (OSX; requires -w)
 
 	  -ll --list-lua-modules             List Lua modules
 	  -la --list-alibs                   List static libs (.a files)
@@ -40,6 +45,7 @@ and it works on Windows, Linux and OSX, x86 and x64.
 
 	 [2] implicit static libs:           luajit
 	 [3] implicit dynamic libs:
+	 [4] implicit frameworks:            ApplicationServices
 
 
 ### Examples

@@ -30,7 +30,9 @@ APREFIX_osx=lib
 
 ALIBS="luajit"
 MODULES="bundle_loader"
-ICON=csrc/bundle/luapower.ico
+ICON_mingw=csrc/bundle/luapower.ico
+ICON_osx=csrc/bundle/luapower.icns
+OSX_ICON_SIZES="16 32 128" # you can add 256 and 512 but the icns will be 0.5M
 
 IGNORE_ODIR=
 COMPRESS_EXE=
@@ -250,8 +252,6 @@ link_mingw() {
 	local xopt
 	# make a windows app or a console app
 	[ "$NOCONSOLE" ] && xopt="$xopt -mwindows"
-	# make a windows app or a console app
-	# [ $P = mingw32 ] && xopt="$xopt \"$mingw_lib_dir/libmingw32.a\""
 
 	verbose g++ $LDFLAGS $OFILES -o "$EXE" \
 		-static -static-libgcc -static-libstdc++ \
@@ -288,11 +288,65 @@ link_osx() {
 		-Wl,-all_load `aopt "$ALIBS"` $xopt
 	chmod +x "$EXE"
 	install_name_tool -add_rpath @loader_path/ "$EXE"
+	# make a minimal app bundle if necessary
+	[ "$NOCONSOLE" ] && make_osx_app
 }
 
 link_all() {
 	say "Linking $EXE..."
 	link_$OS
+}
+
+# usage: $0 infile.png outfile.icns
+make_icns() {
+	local png="$1"
+	local icns="$2"
+	local iconset="$icns.iconset"
+	rm -rf "$iconset"
+	mkdir -p "$iconset"
+	for i in $OSX_ICON_SIZES; do
+		local i2=$((i*2))
+		sips -z $i  $i  "$png" --out "$iconset/icon_${i}x${i}.png" >/dev/null
+		sips -z $i2 $i2 "$png" --out "$iconset/icon_${i}x${i}@2x.png" >/dev/null
+	done
+	rm -f "$icns"
+	iconutil -c icns -o "$icns" "$iconset" 2>&1 | grep -v "warning: No image found"
+	rm -rf "$iconset"
+}
+
+# usage: EXE=exefile [ICON=iconfile] $0
+make_osx_app() {
+	local exename="$(basename "$EXE")"
+	local cdir="$EXE.app/Contents"
+
+	# make the app contents dir and move the exe to it
+	mkdir -p "$cdir/MacOS"
+	mv -f "$EXE" "$cdir/MacOS/$exename"
+
+	# create a bare-minimum info.plist file
+	(
+		echo '<?xml version="1.0" encoding="UTF-8"?>'
+		echo '<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+		echo '<plist version="1.0">'
+		echo '<dict>'
+		echo "<key>CFBundleExecutable</key><string>$exename</string>"
+		echo "<key>CFBundleIconFile</key><string>icon.icns</string>"
+		echo "</dict></plist>"
+	) > "$cdir/Info.plist"
+
+	# convert/copy the icon file
+	[ "$ICON" ] && {
+		local ext="${ICON##*.}"
+		local icns="$cdir/Resources/icon.icns"
+		mkdir -p "$(dirname "$icns")"
+		if [ "$ext" = "png" ]; then
+			make_icns "$ICON" "$icns"
+		elif [ "$ext" = "icns" ]; then
+			cp -f "$ICON" "$icns"
+		else
+			die "Unknown icon type: $ext"
+		fi
+	}
 }
 
 compress_exe() {
@@ -331,18 +385,16 @@ usage() {
 	echo "  -m  --modules \"FILE1 ...\"|--all|-- Lua (or other) modules to bundle [1]"
 	echo "  -a  --alibs \"LIB1 ...\"|--all|--    Static libs to bundle            [2]"
 	echo "  -d  --dlibs \"LIB1 ...\"|--          Dynamic libs to link against     [3]"
-	[ $OS = osx ] && \
-	echo "  -f  --frameworks \"FRM1 ...\"        Frameworks to link against       [4]"
+	echo "  -f  --frameworks \"FRM1 ...\"        Frameworks to link against (OSX) [4]"
 	echo
 	echo "  -M  --main MODULE                  Module to run on start-up"
 	echo
-	[ $OS = osx ] && \
-	echo "  -m32                               Force 32bit platform"
+	echo "  -m32                               Compile for 32bit (OSX)"
 	echo "  -z  --compress                     Compress the executable (needs UPX)"
-	[ $OS = mingw ] && \
-	echo "  -i  --icon FILE                    Set icon"
-	[ $OS = mingw ] && \
-	echo "  -w  --no-console                   Hide the terminal / console"
+	echo "  -w  --no-console                   Hide console (Windows)"
+	echo "  -w  --no-console                   Make app bundle (OSX)"
+	echo "  -i  --icon FILE.ico                Set icon (Windows)"
+	echo "  -i  --icon FILE.png                Set icon (OSX; requires -w)"
 	echo
 	echo "  -ll --list-lua-modules             List Lua modules"
 	echo "  -la --list-alibs                   List static libs (.a files)"
@@ -358,7 +410,6 @@ usage() {
 	echo
 	echo " [2] implicit static libs:           "$ALIBS
 	echo " [3] implicit dynamic libs:          "$DLIBS
-	[ $OS = osx ] && \
 	echo " [4] implicit frameworks:            "$FRAMEWORKS
 	echo
 	exit
@@ -374,8 +425,9 @@ set_platform() {
 
 	# set platform-specific variables
 	OS=${P%[0-9][0-9]}
-	eval DLIBS=\$DLIBS_$OS
-	eval APREFIX=\$APREFIX_$OS
+	[ "$DLIBS" ]   || eval DLIBS=\$DLIBS_$OS
+	[ "$APREFIX" ] || eval APREFIX=\$APREFIX_$OS
+	[ "$ICON" ]    || eval ICON=\$ICON_$OS
 
 	[ $P = osx32 ] && { CFLAGS="-arch i386";   LDFLAGS="-arch i386"; }
 	[ $P = osx64 ] && { CFLAGS="-arch x86_64"; LDFLAGS="-arch x86_64"; }
