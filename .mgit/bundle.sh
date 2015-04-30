@@ -31,7 +31,7 @@ APREFIX_osx=lib
 ALIBS="luajit"
 MODULES="bundle_loader"
 ICON_mingw=csrc/bundle/luapower.ico
-ICON_osx=csrc/bundle/luapower.icns
+ICON_osx=csrc/bundle/luapower-icon.png
 OSX_ICON_SIZES="16 32 128" # you can add 256 and 512 but the icns will be 0.5M
 
 IGNORE_ODIR=
