@@ -61,6 +61,7 @@ lua_modules() {
 			[ "${f:0:1}" != "." \
 				-a "${f:0:4}" != csrc \
 				-a "${f:0:5}" != media \
+				-a "${f:0:5}" != .mgit \
 			] && \
 				lua_modules $f/
 		else

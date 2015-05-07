@@ -1,11 +1,13 @@
 #!/bin/bash
-# unit test for bundle
+# unit test for bundle: bundles all luapower modules and libs plus a large blob
+# and bundle_test.lua as the main module, and runs the generated exe.
 
 P="$1"
-[ "$P" ] || P=`.mgit/platform.sh`
+[ "$P" ] || P=$(.mgit/platform.sh)
 [ "$P" ] || exit 1
-OS=${P%[0-9][0-9]}
-[ $P = mingw32 -o $P = linux32 -o $P = osx32 ] && m32=-m32
+OS=$(.mgit/platform.sh -o)
+A=$(.mgit/platform.sh -a)
+[ $A = 32 ] && m32=-m32
 
 D=.bundle-test/$P
 EXE=test
