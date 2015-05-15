@@ -79,15 +79,20 @@ inside the exe and some are left outside, with no changes to the code and no
 rebundling needed. External modules always take precedence over embedded ones,
 allowing partial upgrades to the original executable without the need for a
 rebuild. Finally, one of the modules (embedded or not) can be specified
-to run instead of the usual command line, effectively enabling
-single-executable app deployment for pure Lua apps with no glue C code needed.
+to run instead of the usual REPL, effectively enabling single-executable
+app deployment for pure Lua apps with no glue C code needed.
 
 ### Components
 
 #### .mgit/bundle.sh
 
-The bundler script (see below): compiles and links modules to create
-a fat executable.
+The bundler script: compiles and links modules to create a fat executable.
+
+> The reason the script is hidden inside the .mgit dir is to allow you to
+use the same command `mgit bundle` on all platforms. In particular, mgit
+will drive the script using Git bash on Windows, if git is in your PATH.
+You can run the script directly without mgit of course but always run it
+from the root directory like this: `.mgit/bundle.sh` or move it there.
 
 #### csrc/bundle/luajit.c
 

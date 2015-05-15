@@ -262,7 +262,7 @@ link_mingw() {
 		`lopt "$DLIBS"` $xopt
 }
 
-# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
+# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file $0
 link_linux() {
 	verbose g++ $LDFLAGS $OFILES -o "$EXE" \
 		-static-libgcc -static-libstdc++ \
@@ -275,7 +275,7 @@ link_linux() {
 	chmod +x "$EXE"
 }
 
-# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file
+# usage: LDFLAGS=... P=platform ALIBS='lib1 ...' DLIBS='lib1 ...' EXE=exe_file $0
 link_osx() {
 	# note: luajit needs these flags for OSX/x64, see http://luajit.org/install.html#embed
 	local xopt; [ $P = osx64 ] && xopt="-pagezero_size 10000 -image_base 100000000"
