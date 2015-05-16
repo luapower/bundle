@@ -144,3 +144,12 @@ better results can be acheived by compressing them individually or not
 compressing them at all, instead of compressing the entire exe.
 Compression also adds up to the exe's loading time.
 
+
+## Licensing restrictions
+
+Some libraries in luapower are LGPL (check the package table on the homepage
+to see which). LGPL does not allow static linking on closed-source
+projects. IANAL, but because a bundled executable will always load
+the dynamic version of a bundled library if one is found in the directory
+of the exe, it could be argued that the behavior complies with the intention
+of LGPL to provide a way for the user to switch the said library.
