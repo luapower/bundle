@@ -409,9 +409,9 @@ usage() {
 	echo
 	echo " [1] .lua, .c and .dasl are compiled, other files are added as blobs."
 	echo
-	echo " [2] implicit static libs:           "$ALIBS
-	echo " [3] implicit dynamic libs:          "$DLIBS
-	echo " [4] implicit frameworks:            "$FRAMEWORKS
+	echo " [2] implicit static libs:           "$ALIBS0
+	echo " [3] implicit dynamic libs:          "$DLIBS0
+	echo " [4] implicit frameworks:            "$FRAMEWORKS0
 	echo
 	exit
 }
@@ -488,6 +488,10 @@ parse_opts() {
 	done
 	[ "$EXE" ] || usage
 }
+
+ALIBS0="$ALIBS"
+DLIBS0="$DLIBS"
+FRAMEWORKS0="$FRAMEWORKS"
 
 set_platform
 parse_opts "$@"
