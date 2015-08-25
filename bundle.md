@@ -1,5 +1,4 @@
 ---
-project: bundle
 tagline: single-executable app deployment
 ---
 
