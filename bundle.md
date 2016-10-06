@@ -10,7 +10,7 @@ into a single fat executable. In its default configuration, it assumes
 luapower's [toolchain][building] and [directory layout][get-involved]\*
 and it works on Windows, Linux and OSX, x86 and x64.
 
-__\*you have to place your own code in the luapower directory.__
+_\*you have to place your own code in the luapower directory._
 
 ## Usage
 
