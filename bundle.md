@@ -7,13 +7,20 @@ tagline: single-executable app deployment
 Bundle is a small framework for bundling together LuaJIT, Lua modules,
 Lua/C modules, DynASM/Lua modules, C libraries, and other static assets
 into a single fat executable. In its default configuration, it assumes
-luapower's [toolchain][building] and [directory layout][get-involved] 
-(read: you have to place your own code in the luapower directory) and 
+luapower's [toolchain][building] and [directory layout][get-involved]
+(read: you have to place your own code in the luapower directory) and
 it works on Windows, Linux and OSX, x86 and x64.
 
 ## Usage
 
-	mgit bundle options...
+
+	 Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,
+	 and other static assets into a single fat executable.
+
+	 Tested with mingw, gcc and clang on Windows, Linux and OSX respectively.
+	 Written by Cosmin Apreutesei. Public Domain.
+
+	 USAGE: mgit bundle options...
 
 	  -o  --output FILE                  Output executable (required)
 
@@ -21,7 +28,7 @@ it works on Windows, Linux and OSX, x86 and x64.
 	  -a  --alibs "LIB1 ..."|--all|--    Static libs to bundle            [2]
 	  -d  --dlibs "LIB1 ..."|--          Dynamic libs to link against     [3]
 	  -f  --frameworks "FRM1 ..."        Frameworks to link against (OSX) [4]
-	  -b  --bin-modules "FILE1 ..."      Files to force bundling as blobs
+	  -b  --bin-modules "FILE1 ..."      Files to force-bundle as binary blobs
 
 	  -M  --main MODULE                  Module to run on start-up
 
@@ -31,6 +38,9 @@ it works on Windows, Linux and OSX, x86 and x64.
 	  -w  --no-console                   Make app bundle (OSX)
 	  -i  --icon FILE.ico                Set icon (Windows)
 	  -i  --icon FILE.png                Set icon (OSX; requires -w)
+	  -vi --versioninfo "Name=Val;..."   Set VERSIONINFO fields (Windows)
+	  -av --appversion VERSION|auto      Set bundle.appversion to VERSION
+	  -ar --apprepo REPO                 Git repo for -av auto
 
 	  -ll --list-lua-modules             List Lua modules
 	  -la --list-alibs                   List static libs (.a files)
@@ -49,6 +59,7 @@ it works on Windows, Linux and OSX, x86 and x64.
 	 [4] implicit frameworks:            ApplicationServices
 
 
+
 ### Examples
 
 	# full bundle: all Lua modules plus all static libraries
@@ -63,6 +74,8 @@ it works on Windows, Linux and OSX, x86 and x64.
 	# run the unit tests
 	mgit bundle-test
 
+__TIP:__ Pass `-vi "FileDescription=..."` to set the process description
+that is shown in the Windows task manager.
 
 ## How it works
 
@@ -131,6 +144,7 @@ Optional module with an API for loading embedded binary files:
 `mmap.data`                               pointer to file data
 `mmap.size`                               file size
 `mmap:close()`                            close the mmap object
+`bundle.appversion -> string`             app version from the `-av` cmdline option
 ----------------------------------------- -------------------------------------------------
 
 __NOTE:__ These functions look in the filesystem _first_ and only if that fails
