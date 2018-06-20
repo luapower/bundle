@@ -13,66 +13,69 @@ it works on Windows, Linux and OSX, x86 and x64.
 
 ## Usage
 
+~~~
+ Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,
+ and other static assets into a single fat executable.
 
-	 Compile and link together LuaJIT, Lua modules, Lua/C modules, C libraries,
-	 and other static assets into a single fat executable.
+ Tested with mingw, gcc and clang on Windows, Linux and OSX respectively.
+ Written by Cosmin Apreutesei. Public Domain.
 
-	 Tested with mingw, gcc and clang on Windows, Linux and OSX respectively.
-	 Written by Cosmin Apreutesei. Public Domain.
+ USAGE: mgit bundle options...
 
-	 USAGE: mgit bundle options...
+  -o  --output FILE                  Output executable (required)
 
-	  -o  --output FILE                  Output executable (required)
+  -m  --modules "FILE1 ..."|--all|-- Lua (or other) modules to bundle [1]
+  -a  --alibs "LIB1 ..."|--all|--    Static libs to bundle            [2]
+  -d  --dlibs "LIB1 ..."|--          Dynamic libs to link against     [3]
+  -f  --frameworks "FRM1 ..."        Frameworks to link against (OSX) [4]
+  -b  --bin-modules "FILE1 ..."      Files to force-bundle as binary blobs
 
-	  -m  --modules "FILE1 ..."|--all|-- Lua (or other) modules to bundle [1]
-	  -a  --alibs "LIB1 ..."|--all|--    Static libs to bundle            [2]
-	  -d  --dlibs "LIB1 ..."|--          Dynamic libs to link against     [3]
-	  -f  --frameworks "FRM1 ..."        Frameworks to link against (OSX) [4]
-	  -b  --bin-modules "FILE1 ..."      Files to force-bundle as binary blobs
+  -M  --main MODULE                  Module to run on start-up
 
-	  -M  --main MODULE                  Module to run on start-up
+  -m32                               Compile for 32bit (OSX)
+  -z  --compress                     Compress the executable (needs UPX)
+  -w  --no-console                   Hide console (Windows)
+  -w  --no-console                   Make app bundle (OSX)
+  -i  --icon FILE.ico                Set icon (Windows)
+  -i  --icon FILE.png                Set icon (OSX; requires -w)
+  -vi --versioninfo "Name=Val;..."   Set VERSIONINFO fields (Windows)
+  -av --appversion VERSION|auto      Set bundle.appversion to VERSION
+  -ar --apprepo REPO                 Git repo for -av auto
 
-	  -m32                               Compile for 32bit (OSX)
-	  -z  --compress                     Compress the executable (needs UPX)
-	  -w  --no-console                   Hide console (Windows)
-	  -w  --no-console                   Make app bundle (OSX)
-	  -i  --icon FILE.ico                Set icon (Windows)
-	  -i  --icon FILE.png                Set icon (OSX; requires -w)
-	  -vi --versioninfo "Name=Val;..."   Set VERSIONINFO fields (Windows)
-	  -av --appversion VERSION|auto      Set bundle.appversion to VERSION
-	  -ar --apprepo REPO                 Git repo for -av auto
+  -ll --list-lua-modules             List Lua modules
+  -la --list-alibs                   List static libs (.a files)
 
-	  -ll --list-lua-modules             List Lua modules
-	  -la --list-alibs                   List static libs (.a files)
+  -C  --clean                        Ignore the object cache
 
-	  -C  --clean                        Ignore the object cache
+  -v  --verbose                      Be verbose
+  -h  --help                         Show this screen
 
-	  -v  --verbose                      Be verbose
-	  -h  --help                         Show this screen
+ Passing -- clears the list of args for that option, including implicit args.
 
-	 Passing -- clears the list of args for that option, including implicit args.
+ [1] .lua, .c and .dasl are compiled, other files are added as blobs.
 
-	 [1] .lua, .c and .dasl are compiled, other files are added as blobs.
+ [2] implicit static libs:           luajit
+ [3] implicit dynamic libs:
+ [4] implicit frameworks:            ApplicationServices
 
-	 [2] implicit static libs:           luajit
-	 [3] implicit dynamic libs:
-	 [4] implicit frameworks:            ApplicationServices
-
+~~~
 
 
 ### Examples
 
-	# full bundle: all Lua modules plus all static libraries
-	mgit bundle -a --all -m --all -M main -o fat.exe
+~~~
+# full bundle: all Lua modules plus all static libraries
+mgit bundle -a --all -m --all -M main -o fat.exe
 
-	# minimal bundle: two Lua modules, one static lib, one blob
-	mgit bundle -a sha2 -m 'sha2 main media/bmp/bg.bmp' -M main -o lean.exe
+# minimal bundle: two Lua modules, one static lib, one blob
+mgit bundle -a sha2 -m 'sha2 main media/bmp/bg.bmp' -M main -o lean.exe
 
-	# luajit frontend with built-in luasocket support, no main module
-	mgit bundle -a 'socket_core mime_core' -m 'socket mime ltn12 socket/*.lua' -o luajit.exe
+# luajit frontend with built-in luasocket support, no main module
+mgit bundle -a 'socket_core mime_core' -m 'socket mime ltn12 socket/*.lua' -o luajit.exe
 
-	# run the unit tests
-	mgit bundle-test
+# run the unit tests
+mgit bundle-test
+~~~
 
 __TIP:__ Pass `-vi "FileDescription=..."` to set the process description
 that is shown in the Windows task manager.
