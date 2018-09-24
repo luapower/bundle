@@ -153,7 +153,9 @@ function bundle.fs_open(file)
 end
 
 function bundle.fs_dir(dir)
-	return fs_dir_file(dir) or fs_dir_blob(dir)
+	local d, next = fs_dir_file(dir)
+	if d then return d, next end
+	return fs_dir_blob(dir)
 end
 
 local ok, ver = pcall(require, 'bundle_appversion')
