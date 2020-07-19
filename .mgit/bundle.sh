@@ -236,15 +236,19 @@ compile_version_info() {
 	sayt versioninfo "$VERSIONINFO"
 	s="$(echo '
 	1 VERSIONINFO
-		{
+	{
 		BLOCK "StringFileInfo" {
 			BLOCK "040904b0" {'
 			while read -d';' -r pair; do
+				[ -z "$pair" ] && continue
 				IFS='=' read -r key val <<<"$pair"
 				echo "				VALUE \"$key\", \"$val\000\""
 			done <<<"$1;"
 	echo '			}
 		}
+		BLOCK "VarFileInfo" {
+	        VALUE "Translation", 0x409, 1200
+	    }
 	}
 	')" o=$ODIR/_versioninfo.res.o compile_resource
 }
