@@ -235,7 +235,13 @@ compile_version_info() {
 	[ $OS = mingw ] || return
 	sayt versioninfo "$VERSIONINFO"
 	s="$(echo '
-	1 VERSIONINFO
+	1 VERSIONINFO'
+	if [ "${#FILEVERSION}" = 7 ]; then
+		echo "
+		FILEVERSION ${FILEVERSION//./,}
+		PRODUCTVERSION ${FILEVERSION//./,}"
+	fi
+	echo '
 	{
 		BLOCK "StringFileInfo" {
 			BLOCK "040904b0" {'
@@ -494,6 +500,7 @@ usage() {
 	echo "  -i  --icon FILE.ico                Set icon (Windows)"
 	echo "  -i  --icon FILE.png                Set icon (OSX; requires -w)"
 	echo "  -vi --versioninfo \"Name=Val;...\"   Set VERSIONINFO fields (Windows)"
+	echo "  -fv --fileversion 				   Set FILEVERSION field (Windows)"
 	echo "  -av --appversion VERSION|auto      Set bundle.appversion to VERSION"
 	echo "  -ar --apprepo REPO                 Git repo for -av auto"
 	echo
@@ -590,6 +597,8 @@ parse_opts() {
 				NOCONSOLE=1;;
 			-vi | --versioninfo)
 				VERSIONINFO="$VERSIONINFO;$1"; shift;;
+			-fv | --fileversion)
+				FILEVERSION="$1"; shift;;
 			-av  | --appversion)
 				APPVERSION="$1"; shift;;
 			-ar  | --apprepo)
