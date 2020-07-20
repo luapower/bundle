@@ -358,6 +358,7 @@ link_mingw() {
 		-Wl,--export-all-symbols \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
 		-Wl,--no-whole-archive \
+		-Wl,--allow-multiple-definition \
 		`lopt "$DLIBS"` $xopt
 }
 
@@ -370,6 +371,7 @@ link_linux() {
 		-pthread \
 		-Wl,--whole-archive `aopt "$ALIBS"` \
 		-Wl,--no-whole-archive `lopt "$DLIBS"` \
+		-Wl,--allow-multiple-definition \
 		-Wl,-rpath,'\$\$ORIGIN'
 	chmod +x "$EXE"
 }
