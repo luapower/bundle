@@ -502,7 +502,7 @@ usage() {
 	echo "  -i  --icon FILE.ico                Set icon (Windows)"
 	echo "  -i  --icon FILE.png                Set icon (OSX; requires -w)"
 	echo "  -vi --versioninfo \"Name=Val;...\"   Set VERSIONINFO fields (Windows)"
-	echo "  -fv --fileversion 				   Set FILEVERSION field (Windows)"
+	echo "  -fv --fileversion                  Set FILEVERSION field (Windows)"
 	echo "  -av --appversion VERSION|auto      Set bundle.appversion to VERSION"
 	echo "  -ar --apprepo REPO                 Git repo for -av auto"
 	echo
