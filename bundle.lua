@@ -141,16 +141,21 @@ function bundle.canopen(file)
 	return canopen_file(file) or canopen_blob(file)
 end
 
+local function check(file, ok)
+	if ok then return true end
+	return nil, ('file not found: %s'):(file)
+end
+
 function bundle.load(file)
-	return load_file(file) or load_blob(file)
+	return check(file, load_file(file) or load_blob(file))
 end
 
 function bundle.mmap(file)
-	return mmap_file(file) or mmap_blob(file)
+	return check(mmap_file(file) or mmap_blob(file))
 end
 
 function bundle.fs_open(file)
-	return fs_open_file(file) or fs_open_blob(file)
+	return check(fs_open_file(file) or fs_open_blob(file))
 end
 
 function bundle.fs_dir(dir)
