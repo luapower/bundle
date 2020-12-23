@@ -141,9 +141,9 @@ function bundle.canopen(file)
 	return canopen_file(file) or canopen_blob(file)
 end
 
-local function check(file, ok)
-	if ok then return true end
-	return nil, ('file not found: %s'):(file)
+local function check(file, v)
+	if v then return v end
+	return nil, ('file not found: %s'):format(file)
 end
 
 function bundle.load(file)
