@@ -14,12 +14,12 @@ local function bundle_add_loaders(state)
 end
 
 --call this after initializing the Lua state in order to patch `require`
---and `ffi.load` inside the state just as the main exe was upon init.
+--and `ffi.load` inside the state just as the main exe was doing on init.
 function M.init_bundle(state)
 	local ok, err = pcall(bundle_add_loaders, state)
 	if not ok then return end --not running a bundled luajit exe
 	local top = state:gettop()
-	state:push{[0] = arg[0]} --used by bundle_loader to get exe dir
+	state:push{[0] = arg[0]} --used to make `glue.bin`
 	state:setglobal'arg'
 	state:loadstring"return require'bundle_loader'()"
 	local ok, ret = state:pcall()
