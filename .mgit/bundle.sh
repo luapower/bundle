@@ -312,7 +312,8 @@ compile_all() {
 	osuffix=_$MAIN compile_bundle_module bundle.c $copt
 
 	(cd csrc/luajit/src/src && \
-		patch -o ../../../bundle/luajit.c < ../../../bundle/luajit.c.patch)
+		patch -o "$(realpath ../../../bundle/luajit.c)" \
+			< ../../../bundle/luajit.c.patch >/dev/null)
 
 	# compile our custom luajit frontend which calls bundle_add_loaders()
 	# and bundle_main() on startup.
