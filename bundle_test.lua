@@ -36,7 +36,7 @@ local function test_load_all()
 end
 
 local function test_load_mysql()
-	local mysql = require'mysql'
+	local mysql = require'mysql_connector'
 	mysql.config()
 end
 
